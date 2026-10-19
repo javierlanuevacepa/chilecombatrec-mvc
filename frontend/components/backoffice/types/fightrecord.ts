@@ -1,0 +1,1 @@
+export type FightRecord = { wins: number; losses: number; draws: number };
