@@ -20,6 +20,7 @@ export function mapDeportistaToStudent(d: DeportistaApi): Student {
 
   return {
     id: d.uuid,
+    codigo_interno: d.codigo_interno,
     rut: d.rut,
     digitoVerif: d.digito_verif,
     pNombre: d.p_nombre,
@@ -31,6 +32,7 @@ export function mapDeportistaToStudent(d: DeportistaApi): Student {
     fechaNacimiento: d.fecha_nacimiento,
     genero: d.genero,
     pesoEnKg: Number(d.peso_en_kg) || 0,
+    aparecer_busqueda: Boolean(d.aparecer_busqueda),
     estaturaEnCm: d.estatura_en_cm != null ? Number(d.estatura_en_cm) : null,
     // Las disciplinas viven en deportista_disciplina y el record en
     // deportista_record_legacy. Aquí se derivan de los records (como en el

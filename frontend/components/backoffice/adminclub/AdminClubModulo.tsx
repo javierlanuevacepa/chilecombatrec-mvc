@@ -28,7 +28,7 @@ import Panel from "../ui/Panel";
 import Modal from "../ui/Modal";
 import ConfirmModal from "../ui/ConfirmModal";
 
-import TeamForm from "./TeamForm";
+import TeamForm, { type TeamInput } from "./TeamForm";
 import CoachForm from "./CoachForm";
 import StudentForm from "./StudentForm";
 
@@ -52,6 +52,7 @@ import {
   calcularRecordTotal,
   formatearRecord,
 } from "@/lib/repository/deportista.api";
+import { useDisciplinas } from "@/lib/hooks/useDisciplinas";
 
 /* -------------------------------------------------------------------------- */
 
@@ -63,10 +64,7 @@ type PendingDelete = {
   name: string;
 };
 
-type TeamInput = Team & {
-  description?: string | null;
-  foundationDate?: string | null;
-};
+
 
 const initials = (name: string) =>
   name
@@ -113,12 +111,24 @@ export default function AdminClubModulo() {
     usuario,
     cargando,
     error,
+    limpiarErrorGuardado,
     sinClub,
     guardando,
     errorGuardado,
     actualizarClub,
     refrescar,
   } = useMiClub();
+  const { disciplinas: catalogo } = useDisciplinas();
+
+  /* -------------------- Disciplinas ----------------------------- */
+  const disciplinasCatalogo = useMemo(() => {
+  const map = new Map(catalogo.map((d) => [d.uuid, { uuid: d.uuid, nombre: d.nombre }]));
+  club?.disciplinas.forEach((d) => {
+    if (!map.has(d.uuid)) map.set(d.uuid, { uuid: d.uuid, nombre: d.nombre });
+  });
+  return [...map.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
+}, [catalogo, club]);
+
 
   const coachesCrud = useCoachesClub(club?.uuid ?? null, refrescar);
   const deportistasCrud = useDeportistasClub(club?.uuid ?? null, refrescar);
@@ -138,6 +148,9 @@ export default function AdminClubModulo() {
     coaches: null,
     students: null,
   });
+
+  
+
 
   /* -------------------- Coaches desde el club ----------------------------- */
   const coaches: Coach[] = useMemo(() => {
@@ -174,6 +187,8 @@ export default function AdminClubModulo() {
         nacionalidad: d.nacionalidad,
         fechaNacimiento: d.fecha_nacimiento,
         genero: d.genero,
+        codigo_interno: d.codigo_interno,
+        aparecer_busqueda: d.aparecer_busqueda,
         pesoEnKg: Number(d.peso_en_kg) || 0,
         estaturaEnCm:
           d.estatura_en_cm != null ? Number(d.estatura_en_cm) : null,
@@ -218,36 +233,35 @@ export default function AdminClubModulo() {
 
   /* ---------------------- Mapeo Club → Team para UI ----------------------- */
   const team: TeamInput = {
-    name: club?.nombre ?? "",
-    phone: club?.telefono ?? "",
-    photo: club?.url_foto ?? null,
-    description: club?.descripcion ?? null,
-    foundationDate: club?.fecha_fundacion ?? null,
-  };
+  name: club?.nombre ?? "",
+  phone: club?.telefono ?? "",
+  photo: club?.url_foto ?? null,
+  description: club?.descripcion ?? null,
+  foundationDate: club?.fecha_fundacion?.slice(0, 10) ?? null,
+  email: club?.correo_institucional ?? null,
+  disciplinas: club?.disciplinas.map((d) => d.uuid) ?? [],
+};
 
   /* ----------------------------- Guardar equipo --------------------------- */
-  const saveTeam = (data: Team) => {
-    void (async () => {
-      try {
-        const input = data as TeamInput;
-        const patch: ClubActualizarInput = {
-          nombre: input.name,
-          telefono: input.phone || null,
-          url_foto: input.photo,
-        };
-        if (input.description !== undefined) {
-          patch.descripcion = input.description || null;
-        }
-        if (input.foundationDate !== undefined) {
-          patch.fecha_fundacion = input.foundationDate || null;
-        }
-        await actualizarClub(patch);
-        setTeamModal(false);
-      } catch {
-        /* errorGuardado ya fue seteado por el hook */
-      }
-    })();
-  };
+const saveTeam = (input: TeamInput) => {
+  void (async () => {
+    try {
+      const patch: ClubActualizarInput = {
+        nombre: input.name,
+        telefono: input.phone || null,
+        url_foto: input.photo,
+        descripcion: input.description,
+        fecha_fundacion: input.foundationDate,
+        correo_institucional: input.email,
+        disciplinas: input.disciplinas,
+      };
+      await actualizarClub(patch);
+      setTeamModal(false);
+    } catch {
+      /* errorGuardado ya fue seteado por el hook */
+    }
+  })();
+};
 
   /* ------------------------ Guardar coach (real) -------------------------- */
   const saveCoach = async (data: CoachDraft) => {
@@ -679,27 +693,37 @@ export default function AdminClubModulo() {
 
       {/* Modal equipo */}
       {teamModal && (
-        <Modal title="Editar equipo" onClose={() => setTeamModal(false)}>
-          {guardando && (
-            <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
-              Guardando cambios…
-            </p>
-          )}
-          {errorGuardado && (
-            <p
-              role="alert"
-              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
-            >
-              {errorGuardado}
-            </p>
-          )}
-          <TeamForm
-            initial={team as Team}
-            onSave={saveTeam}
-            onCancel={() => setTeamModal(false)}
-          />
-        </Modal>
-      )}
+  <Modal
+    title="Editar equipo"
+    onClose={() => {
+      limpiarErrorGuardado();
+      setTeamModal(false);
+    }}
+  >
+    {guardando && (
+      <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
+        Guardando cambios…
+      </p>
+    )}
+    {errorGuardado && (
+      <p
+        role="alert"
+        className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+      >
+        {errorGuardado}
+      </p>
+    )}
+    <TeamForm
+      initial={team}
+      disciplinasDisponibles={disciplinasCatalogo}
+      onSave={saveTeam}
+      onCancel={() => {
+        limpiarErrorGuardado();
+        setTeamModal(false);
+      }}
+    />
+  </Modal>
+)}
 
       {/* Modal coach */}
       {coachModal && (

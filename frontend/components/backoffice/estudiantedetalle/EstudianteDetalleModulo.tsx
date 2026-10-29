@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -20,12 +21,15 @@ import {
 import Avatar from "@/components/backoffice/ui/Avatar";
 import Button from "../ui/Button";
 import Panel from "../ui/Panel";
+import Modal from "../ui/Modal";
 
 import EmptyState from "@/components/backoffice/adminclub/EmptyState";
 
 import { Student } from "@/components/backoffice/types/student";
 
 import { useMiClub } from "@/lib/hooks/useMiClub";
+import { useDeportistasClub } from "@/lib/hooks/useDeportistasClub";
+import deportistaApi from "@/lib/repository/deportista.api";
 import { useRivales } from "@/lib/hooks/useRivales";
 import { mapDeportistaToStudent } from  "@/lib/mappers/club.mappers";
 
@@ -85,6 +89,19 @@ const etiquetaGenero = (g: string | null | undefined): string | null => {
 
 const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
 
+/**
+ * Lee un booleano venga como viniere: true/false, 1/0 (MySQL dentro de un
+ * JSON_OBJECT) o "1"/"0"/"true"/"false". Devuelve `undefined` si el dato no
+ * viene o no se entiende.
+ */
+function leerBooleano(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (v === "1" || v === "true") return true;
+  if (v === "0" || v === "false") return false;
+  return undefined;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Detalle de estudiante                                                       */
 /* -------------------------------------------------------------------------- */
@@ -98,21 +115,64 @@ export default function EstudianteDetalleModulo() {
   const studentId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const { club, usuario, cargando, error, sinClub, refrescar } = useMiClub();
+  // Mutaciones de deportistas; `refrescar` se usa en modo silencioso para
+  // el check de búsqueda (la ficha no vuelve a "Cargando…").
+  const deportistasCrud = useDeportistasClub(club?.uuid ?? null, refrescar);
   const { rivales, buscando, error: errorRivales, buscar, limpiar } =
     useRivales();
 
   /* ------------------------- UI local ------------------------------------- */
   const [disciplinaSel, setDisciplinaSel] = useState<string | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  /** Modal de confirmación al desactivar "aparecer en búsqueda". */
+  const [confirmDesactivar, setConfirmDesactivar] = useState(false);
+  /** Modal de confirmación al activar "aparecer en búsqueda". */
+  const [confirmActivar, setConfirmActivar] = useState(false);
 
   /* -------------------- Deportista desde el club -------------------------- */
-  const student: Student | null = useMemo(() => {
-    const d = club?.deportistas.find((x) => x.uuid === studentId);
-    return d ? mapDeportistaToStudent(d) : null;
-  }, [club, studentId]);
+  const deportistaRaw = useMemo(
+    () => club?.deportistas.find((x) => x.uuid === studentId) ?? null,
+    [club, studentId]
+  );
+
+  const student: Student | null = useMemo(
+    () => (deportistaRaw ? mapDeportistaToStudent(deportistaRaw) : null),
+    [deportistaRaw]
+  );
+
+  /* ------------- Aparecer en búsqueda: valor y respaldo -------------------- */
+  // Valor que viene en `club.deportistas` (tolerante a 1/0).
+  const busquedaDelClub = leerBooleano(deportistaRaw?.aparecer_busqueda);
+  // Si el club no trae el dato, se lee del deportista (GET /deportistas/:uuid).
+  // También guarda el último valor confirmado por el servidor tras cada cambio.
+  const [busquedaServidor, setBusquedaServidor] = useState<boolean | null>(null);
+  const [busquedaCargando, setBusquedaCargando] = useState(true);
+  const faltaBusquedaEnClub =
+    deportistaRaw != null && busquedaDelClub === undefined;
+
+  useEffect(() => {
+    if (!studentId || !faltaBusquedaEnClub) return;
+    let activo = true;
+    setBusquedaCargando(true);
+    deportistaApi
+      .buscarPorUuid(studentId)
+      .then((d) => {
+        if (activo) setBusquedaServidor(leerBooleano(d.aparecer_busqueda) ?? null);
+      })
+      .catch((err) => {
+        console.error("No se pudo leer aparecer_busqueda:", err);
+      })
+      .finally(() => {
+        if (activo) setBusquedaCargando(false);
+      });
+    return () => {
+      activo = false;
+    };
+  }, [studentId, faltaBusquedaEnClub]);
 
   /* --------------------- Redirección si no hay sesión --------------------- */
   useEffect(() => {
+    console.log(student);
     if (!cargando && !usuario) {
       router.replace(LOGIN_ROUTE);
     }
@@ -182,6 +242,12 @@ export default function EstudianteDetalleModulo() {
   const nacimiento = formatDateDMY(student.fechaNacimiento);
   const rut = formatearRut(student.rut, student.digitoVerif);
 
+  // Último valor confirmado por el servidor, o el que trae el club.
+  // Si ninguno está disponible el interruptor queda deshabilitado (gris) en
+  // vez de mostrarse apagado cuando en realidad podría estar activo.
+  const aparecerBusqueda = busquedaServidor ?? busquedaDelClub;
+  const busquedaDisponible = aparecerBusqueda !== undefined;
+
   const disciplinaActiva =
     student.disciplinas.find((d) => d.uuid === disciplinaSel) ??
     student.disciplinas[0] ??
@@ -242,6 +308,58 @@ export default function EstudianteDetalleModulo() {
     tabRefs.current[siguiente.uuid]?.focus();
   };
 
+  /* ----------- Aparecer en búsqueda de combate y ranking ------------------ */
+  /** Guarda el valor y toma como verdad lo que devuelve el servidor. */
+  const guardarBusqueda = async (valor: boolean) => {
+    const actualizado = await deportistasCrud.cambiarAparecerBusqueda(
+      student.id,
+      valor
+    );
+    setBusquedaServidor(leerBooleano(actualizado.aparecer_busqueda) ?? valor);
+  };
+
+  const onToggleBusqueda = (ev: ChangeEvent<HTMLInputElement>) => {
+    if (ev.target.checked) {
+      // Activar: pide confirmación antes de aplicar.
+      deportistasCrud.limpiarErrorGuardado();
+      setConfirmActivar(true);
+      return;
+    }
+    // Desactivar: pide confirmación antes de aplicar.
+    deportistasCrud.limpiarErrorGuardado();
+    setConfirmDesactivar(true);
+  };
+
+  const cerrarConfirmActivar = () => {
+    if (deportistasCrud.guardando) return;
+    deportistasCrud.limpiarErrorGuardado();
+    setConfirmActivar(false);
+  };
+
+  const confirmarActivar = async () => {
+    try {
+      await guardarBusqueda(true);
+      setConfirmActivar(false);
+    } catch {
+      /* errorGuardado se muestra dentro del modal, que queda abierto */
+    }
+  };
+
+  const cerrarConfirmDesactivar = () => {
+    if (deportistasCrud.guardando) return;
+    deportistasCrud.limpiarErrorGuardado();
+    setConfirmDesactivar(false);
+  };
+
+  const confirmarDesactivar = async () => {
+    try {
+      await guardarBusqueda(false);
+      setConfirmDesactivar(false);
+    } catch {
+      /* errorGuardado se muestra dentro del modal, que queda abierto */
+    }
+  };
+
   const handleBuscar = () => {
     if (!disciplinaActiva) return;
     void buscar({
@@ -297,6 +415,9 @@ export default function EstudianteDetalleModulo() {
               <Users size={14} aria-hidden="true" />
               {club.nombre}
             </p>
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-[color:var(--muted)]">
+              Codigo de deportista: {student.codigo_interno}
+            </p>
           </div>
         </section>
 
@@ -325,6 +446,81 @@ export default function EstudianteDetalleModulo() {
             </Panel>
           </section>
         )}
+
+        {/* Aparecer en búsqueda de combate y ranking */}
+        <section aria-label="Visibilidad del deportista" className="mt-4">
+          <Panel innerClassName="px-[18px] py-4">
+            <div className="flex items-start gap-3">
+              {/* Interruptor: apagado = perilla a la izquierda y fondo rojo;
+                  encendido = perilla a la derecha y fondo verde. El input real
+                  (invisible) queda encima para conservar clic, teclado y
+                  lectores de pantalla. */}
+              <span className="relative mt-px inline-flex h-6 w-11 shrink-0">
+                <input
+                  id={`${uid}-busqueda`}
+                  type="checkbox"
+                  role="switch"
+                  checked={aparecerBusqueda === true}
+                  onChange={onToggleBusqueda}
+                  disabled={!busquedaDisponible || deportistasCrud.guardando}
+                  aria-describedby={`${uid}-busqueda-desc`}
+                  className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0 disabled:cursor-not-allowed"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 rounded-full transition-colors duration-200 peer-disabled:opacity-60 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[color:var(--ink)] motion-reduce:transition-none ${
+                    busquedaDisponible
+                      ? "bg-[color:var(--corner)] peer-checked:bg-[#16a34a]"
+                      : "bg-[#9ca3af]"
+                  }`}
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-transform duration-200 peer-checked:translate-x-5 motion-reduce:transition-none"
+                />
+              </span>
+              <div className="min-w-0">
+                <label
+                  htmlFor={`${uid}-busqueda`}
+                  className="cursor-pointer text-[15px] font-medium"
+                >
+                  Aparecer en algoritmos de búsqueda de combate y ranking
+                </label>
+                <p
+                  id={`${uid}-busqueda-desc`}
+                  className="mt-0.5 text-[13px] text-[color:var(--muted)]"
+                >
+                  Si está activado, el deportista puede ser considerado en la
+                  búsqueda de rivales para combates y aparecer en el ranking.
+                </p>
+
+                {!busquedaDisponible && (
+                  <p className="mt-1 text-[13px] text-[color:var(--muted)]">
+                    {busquedaCargando
+                      ? "Cargando…"
+                      : "No pudimos leer este dato por ahora."}
+                  </p>
+                )}
+                {deportistasCrud.guardando && !confirmDesactivar && !confirmActivar && (
+                  <p
+                    role="status"
+                    className="mt-1 text-[13px] text-[color:var(--muted)]"
+                  >
+                    Guardando…
+                  </p>
+                )}
+                {deportistasCrud.errorGuardado && !confirmDesactivar && !confirmActivar && (
+                  <p
+                    role="alert"
+                    className="mt-2 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+                  >
+                    {deportistasCrud.errorGuardado}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Panel>
+        </section>
 
         {/* Récord */}
         <section aria-labelledby={`${uid}-record`} className="mt-9">
@@ -506,6 +702,84 @@ export default function EstudianteDetalleModulo() {
           )}
         </section>
       </main>
+
+      {confirmActivar && (
+        <Modal
+          title="Activar aparición en búsquedas"
+          onClose={cerrarConfirmActivar}
+        >
+          {deportistasCrud.errorGuardado && (
+            <p
+              role="alert"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+            >
+              {deportistasCrud.errorGuardado}
+            </p>
+          )}
+          {/* TEXTO DE CONFIRMACIÓN AL ACTIVAR: reemplaza este párrafo
+              (aquí irá el recordatorio de privacidad, contrato, etc.) */}
+          <p className="text-sm text-[color:var(--ink-soft)]">
+            Si lo activas, “{nombre}” podrá aparecer en los algoritmos de
+            búsqueda de combate y ranking. ¿Quieres continuar?
+          </p>
+          <div className="mt-6 flex gap-2.5">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={cerrarConfirmActivar}
+              disabled={deportistasCrud.guardando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => void confirmarActivar()}
+              disabled={deportistasCrud.guardando}
+            >
+              {deportistasCrud.guardando ? "Guardando…" : "Activar"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDesactivar && (
+        <Modal
+          title="Desactivar aparición en búsquedas"
+          onClose={cerrarConfirmDesactivar}
+        >
+          {deportistasCrud.errorGuardado && (
+            <p
+              role="alert"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+            >
+              {deportistasCrud.errorGuardado}
+            </p>
+          )}
+          <p className="text-sm text-[color:var(--ink-soft)]">
+            Si lo desactivas, “{nombre}” dejará de aparecer en los algoritmos
+            de búsqueda de combate y ranking. ¿Quieres continuar?
+          </p>
+          <div className="mt-6 flex gap-2.5">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={cerrarConfirmDesactivar}
+              disabled={deportistasCrud.guardando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => void confirmarDesactivar()}
+              disabled={deportistasCrud.guardando}
+            >
+              {deportistasCrud.guardando ? "Guardando…" : "Desactivar"}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

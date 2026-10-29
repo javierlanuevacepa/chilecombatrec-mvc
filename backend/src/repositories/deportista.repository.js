@@ -15,6 +15,59 @@ function _json(v) {
   return v;
 }
 
+// ---------------------------------------------------------------
+// RUT
+// ---------------------------------------------------------------
+
+/** Valor que se guarda cuando el deportista no posee RUT. Puede repetirse. */
+const SIN_RUT = "SIN RUT";
+
+const MSG_RUT_EN_USO = "El RUT ya está en uso por otro deportista";
+
+function _esSinRut(rut) {
+  return String(rut ?? "").trim().toUpperCase() === SIN_RUT;
+}
+
+/** Trim + "SIN RUT" siempre en mayúsculas. Deja null/undefined tal cual. */
+function _normalizarRut(rut) {
+  if (rut == null) return rut;
+  const limpio = String(rut).trim();
+  return _esSinRut(limpio) ? SIN_RUT : limpio;
+}
+
+/**
+ * ¿Existe otro deportista ACTIVO con este RUT?
+ * - "SIN RUT" nunca cuenta como duplicado.
+ * - Los deportistas eliminados (activo = false) no cuentan.
+ * - `excluirUuid` permite ignorar al propio deportista al actualizar.
+ */
+async function _rutEnUso(conn, rut, excluirUuid = null) {
+  if (!rut || _esSinRut(rut)) return false;
+
+  let sql = `SELECT 1 FROM deportista WHERE rut = ? AND activo = true`;
+  const params = [rut];
+  if (excluirUuid) {
+    sql += ` AND uuid <> UUID_TO_BIN(?, 1)`;
+    params.push(excluirUuid);
+  }
+  sql += ` LIMIT 1`;
+
+  const [rows] = await conn.query(sql, params);
+  return rows.length > 0;
+}
+
+/**
+ * Si existe el índice único `uq_deportista_rut_activo` (ver nota SQL),
+ * una carrera entre dos registros simultáneos cae aquí.
+ */
+function _esDuplicadoRut(err) {
+  return (
+    err &&
+    err.code === "ER_DUP_ENTRY" &&
+    String(err.message).includes("uq_deportista_rut_activo")
+  );
+}
+
 function _normalizarClubs(clubs) {
   if (!clubs) return [];
   return clubs.map((c) => (typeof c === "string" ? c : c.uuid));
@@ -165,6 +218,7 @@ async function _sincronizarRecords(conn, deportistaUuid, records) {
 const _SELECT_DEPORTISTA = `
   SELECT JSON_OBJECT(
     'uuid',            BIN_TO_UUID(d.uuid, 1),
+    'codigo_interno',  BIN_TO_UUID(d.codigo_interno, 1),
     'rut',             d.rut,
     'digito_verif',    d.digito_verif,
     'p_nombre',        d.p_nombre,
@@ -181,6 +235,7 @@ const _SELECT_DEPORTISTA = `
     'fecha_registro',  d.fecha_registro,
     'modificado_en',   d.modificado_en,
     'eliminado_en',    d.eliminado_en,
+    'aparecer_busqueda', d.aparecer_busqueda,
     'clubs', COALESCE(
       (SELECT JSON_ARRAYAGG(JSON_OBJECT(
                 'uuid',   BIN_TO_UUID(c.uuid, 1),
@@ -249,7 +304,7 @@ async function buscarPorUuid(uuid) {
 
 /**
  * @param {object}  datos
- * @param {string}  datos.rut                 obligatorio (UNIQUE)
+ * @param {string}  datos.rut                 obligatorio (único entre activos; "SIN RUT" se puede repetir)
  * @param {string}  datos.digito_verif        obligatorio
  * @param {string}  datos.p_nombre            obligatorio
  * @param {string} [datos.s_nombre]
@@ -282,8 +337,9 @@ async function crear({
   disciplinas = [],
   records = [],
 }) {
+  rut = _normalizarRut(rut);
+
   if (!rut) throw new Error("El RUT es obligatorio");
-  if (!digito_verif) throw new Error("El dígito verificador es obligatorio");
   if (!p_nombre) throw new Error("El primer nombre es obligatorio");
   if (!p_apellido) throw new Error("El primer apellido es obligatorio");
   if (!fecha_nacimiento) throw new Error("La fecha de nacimiento es obligatoria");
@@ -295,26 +351,29 @@ async function crear({
   try {
     await conn.beginTransaction();
 
-    // 1. RUT único
-    const [existente] = await conn.query(
-      `SELECT 1 FROM deportista WHERE rut = ? LIMIT 1`,
-      [rut]
-    );
-    if (existente.length > 0) {
-      throw new Error("Ya existe un deportista registrado con ese RUT");
+    // 1. RUT en uso por un deportista activo ("SIN RUT" no cuenta)
+    if (await _rutEnUso(conn, rut)) {
+      throw new Error(MSG_RUT_EN_USO);
     }
 
-    // 2. Insertar deportista (UUID lo genera MySQL vía DEFAULT)
+    // 2. Generar el UUID por adelantado. Ya no se puede recuperar el
+    //    registro recién creado por RUT, porque el RUT no es único
+    //    (hay "SIN RUT" repetidos y deportistas eliminados).
+    const [uuidRows] = await conn.query(`SELECT UUID() AS nuevo_uuid`);
+    deportistaUuid = uuidRows[0].nuevo_uuid;
+
+    // 3. Insertar deportista
     await conn.query(
       `INSERT INTO deportista (
-         rut, digito_verif,
+         uuid, rut, digito_verif,
          p_nombre, s_nombre, p_apellido, s_apellido,
          alias, nacionalidad, fecha_nacimiento, genero,
          peso_en_kg, estatura_en_cm
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (UUID_TO_BIN(?, 1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        deportistaUuid,
         rut,
-        digito_verif,
+        digito_verif ?? null,
         p_nombre,
         s_nombre ?? null,
         p_apellido,
@@ -328,13 +387,6 @@ async function crear({
       ]
     );
 
-    // 3. Recuperar el uuid recién creado (RUT es UNIQUE → seguro)
-    const [creado] = await conn.query(
-      `SELECT BIN_TO_UUID(uuid, 1) AS uuid FROM deportista WHERE rut = ? LIMIT 1`,
-      [rut]
-    );
-    deportistaUuid = creado[0].uuid;
-
     // 4. Sincronizar relaciones
     await _sincronizarClubes(conn, deportistaUuid, clubs);
     await _sincronizarDisciplinas(conn, deportistaUuid, disciplinas);
@@ -343,6 +395,7 @@ async function crear({
     await conn.commit();
   } catch (err) {
     await conn.rollback();
+    if (_esDuplicadoRut(err)) throw new Error(MSG_RUT_EN_USO);
     throw err;
   } finally {
     conn.release();
@@ -357,7 +410,7 @@ async function crear({
 
 /**
  * PATCH parcial: `undefined` = no tocar, `[]` = vaciar la relación.
- * Si `rut` cambia, se valida unicidad.
+ * Si `rut` cambia, se valida que no esté en uso por otro deportista activo.
  */
 async function actualizar({
   uuid,
@@ -379,6 +432,8 @@ async function actualizar({
 }) {
   if (!uuid) throw new Error("El uuid es obligatorio");
 
+  rut = _normalizarRut(rut);
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -390,15 +445,9 @@ async function actualizar({
     );
     if (check.length === 0) throw new Error("Deportista no encontrado");
 
-    // 2. Si cambia el RUT, verificar unicidad
-    if (rut && rut !== check[0].rut) {
-      const [dup] = await conn.query(
-        `SELECT 1 FROM deportista WHERE rut = ? AND uuid <> UUID_TO_BIN(?, 1) LIMIT 1`,
-        [rut, uuid]
-      );
-      if (dup.length > 0) {
-        throw new Error("Ya existe otro deportista con ese RUT");
-      }
+    // 2. Si cambia el RUT, verificar que no lo use otro deportista activo
+    if (rut && rut !== check[0].rut && (await _rutEnUso(conn, rut, uuid))) {
+      throw new Error(MSG_RUT_EN_USO);
     }
 
     // 3. Update con COALESCE (null = no tocar)
@@ -443,6 +492,7 @@ async function actualizar({
     await conn.commit();
   } catch (err) {
     await conn.rollback();
+    if (_esDuplicadoRut(err)) throw new Error(MSG_RUT_EN_USO);
     throw err;
   } finally {
     conn.release();
@@ -521,6 +571,36 @@ async function eliminar({ uuid }) {
   return rows[0] ? _json(rows[0].payload) : null;
 }
 
+
+
+async function cambiarAparecerBusqueda({ uuid, aparecer_busqueda }) {
+  if (!uuid) throw new Error("El uuid es obligatorio");
+  if (typeof aparecer_busqueda !== "boolean") {
+    throw new Error("aparecer_busqueda debe ser true o false");
+  }
+
+  // Verificar que exista y esté activo (no depende de si el valor cambia o no)
+  const [existe] = await pool.query(
+    `SELECT 1 FROM deportista WHERE uuid = UUID_TO_BIN(?, 1) AND activo = true LIMIT 1`,
+    [uuid]
+  );
+  if (existe.length === 0) throw new Error("Deportista no encontrado");
+
+  await pool.query(
+    `UPDATE deportista
+     SET aparecer_busqueda = ?,
+         modificado_en     = CURRENT_TIMESTAMP
+     WHERE uuid = UUID_TO_BIN(?, 1) AND activo = true`,
+    [aparecer_busqueda, uuid]
+  );
+
+  return await buscarPorUuid(uuid);
+}
+
+
+
+
+
 // ===============================================================
 // EXPORTS
 // ===============================================================
@@ -531,4 +611,5 @@ module.exports = {
   crear,
   actualizar,
   eliminar,
+  cambiarAparecerBusqueda
 };

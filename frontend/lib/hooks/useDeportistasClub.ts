@@ -48,6 +48,19 @@ export type UseDeportistasClubReturn = {
     records: DeportistaRecordInput[]
   ) => Promise<Deportista>;
 
+  /**
+   * Activa (`true`) o desactiva (`false`) que el deportista aparezca en la
+   * búsqueda de combates y el ranking. Es el único camino para cambiarlo
+   * (`actualizar` no lo acepta).
+   *
+   * Refresca el club en modo silencioso: la pantalla no vuelve a
+   * "Cargando…". Devuelve el deportista ya actualizado.
+   */
+  cambiarAparecerBusqueda: (
+    uuid: string,
+    aparecerBusqueda: boolean
+  ) => Promise<Deportista>;
+
   /** Soft delete del deportista. */
   eliminar: (uuid: string) => Promise<Deportista>;
 };
@@ -79,11 +92,14 @@ function extraerMensaje(err: unknown, fallback: string): string {
  * - No hace GET propio: el listado se lee de `club.deportistas`.
  *
  * @param clubUuid  uuid del club del admin logueado (null si aún no cargó)
- * @param onRefresh callback a ejecutar tras cada éxito (ej. refrescar del club)
+ * @param onRefresh callback a ejecutar tras cada éxito (ej. refrescar del club).
+ *                  Recibe `{ silencioso: true }` en las acciones que no deben
+ *                  mostrar "Cargando…" (ej. el check de búsqueda); `refrescar`
+ *                  de `useMiClub` ya lo entiende.
  */
 export function useDeportistasClub(
   clubUuid: string | null,
-  onRefresh: () => Promise<void>
+  onRefresh: (opciones?: { silencioso?: boolean }) => Promise<void>
 ): UseDeportistasClubReturn {
   const [guardando, setGuardando] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
@@ -98,9 +114,14 @@ export function useDeportistasClub(
    *  - estado `guardando`
    *  - captura + normalización de error a `errorGuardado`
    *  - `onRefresh` solo si la operación fue exitosa
+   *    (`opciones.silencioso` → refresco sin pantalla de carga)
    */
   const ejecutar = useCallback(
-    async <T>(operacion: () => Promise<T>, fallbackMsg: string): Promise<T> => {
+    async <T>(
+      operacion: () => Promise<T>,
+      fallbackMsg: string,
+      opciones?: { silencioso?: boolean }
+    ): Promise<T> => {
       if (!clubUuid) {
         throw new Error("No hay club cargado para operar sobre deportistas");
       }
@@ -110,7 +131,11 @@ export function useDeportistasClub(
 
       try {
         const result = await operacion();
-        await onRefresh();
+        if (opciones?.silencioso) {
+          await onRefresh({ silencioso: true });
+        } else {
+          await onRefresh();
+        }
         return result;
       } catch (err) {
         const mensaje = extraerMensaje(err, fallbackMsg);
@@ -153,6 +178,17 @@ export function useDeportistasClub(
     [ejecutar]
   );
 
+  // ── Aparecer en búsqueda (activar / desactivar) ──────
+  const cambiarAparecerBusqueda = useCallback(
+    (uuid: string, aparecerBusqueda: boolean) =>
+      ejecutar(
+        () => deportistaApi.cambiarAparecerBusqueda(uuid, aparecerBusqueda),
+        "No pudimos cambiar la visibilidad en búsqueda",
+        { silencioso: true }
+      ),
+    [ejecutar]
+  );
+
   // ── Eliminar ─────────────────────────────────────────
   const eliminar = useCallback(
     (uuid: string) =>
@@ -170,6 +206,7 @@ export function useDeportistasClub(
     crear,
     actualizar,
     actualizarRecords,
+    cambiarAparecerBusqueda,
     eliminar,
   };
 }

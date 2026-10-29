@@ -8,7 +8,6 @@ const GENEROS_VALIDOS = ["M", "F", "O"];
 
 function _validarCamposDeportista({
   rut,
-  digito_verif,
   p_nombre,
   p_apellido,
   fecha_nacimiento,
@@ -16,7 +15,6 @@ function _validarCamposDeportista({
   peso_en_kg,
 }) {
   if (!rut) throw new Error("El RUT es obligatorio");
-  if (!digito_verif) throw new Error("El dígito verificador es obligatorio");
   if (!p_nombre) throw new Error("El primer nombre es obligatorio");
   if (!p_apellido) throw new Error("El primer apellido es obligatorio");
   if (!fecha_nacimiento)
@@ -77,7 +75,6 @@ async function registrar(datos) {
 
   _validarCamposDeportista({
     rut,
-    digito_verif,
     p_nombre,
     p_apellido,
     fecha_nacimiento,
@@ -197,6 +194,19 @@ async function eliminar({ uuid }) {
   return deportista;
 }
 
+
+async function cambiarAparecerBusqueda({ uuid, aparecer_busqueda }) {
+  if (!uuid) throw new Error("El uuid del deportista es obligatorio");
+  if (typeof aparecer_busqueda !== "boolean") {
+    throw new Error("aparecer_busqueda debe ser true o false");
+  }
+
+  return await deportistasRepository.cambiarAparecerBusqueda({
+    uuid,
+    aparecer_busqueda,
+  });
+}
+
 // ===============================================================
 // EXPORTS
 // ===============================================================
@@ -206,4 +216,5 @@ module.exports = {
   registrar,
   actualizar,
   eliminar,
+  cambiarAparecerBusqueda
 };

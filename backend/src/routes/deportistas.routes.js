@@ -19,4 +19,6 @@ router.patch("/:uuid", ctrl.actualizar);
 // Eliminar lógicamente un deportista (soft delete)
 router.delete("/:uuid", ctrl.eliminar);
 
+router.patch("/:uuid/aparecer-busqueda", ctrl.cambiarAparecerBusqueda);
+
 module.exports = router;

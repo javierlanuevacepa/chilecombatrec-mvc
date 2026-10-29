@@ -27,7 +27,89 @@ const GENEROS = [
   { value: "O", label: "Otro" },
 ];
 
+/** Valor que se envía al backend cuando el deportista no tiene RUT. */
+const SIN_RUT = "SIN RUT";
+
+const IDENTIFICACION = [
+  { value: "si", label: "Tiene RUT" },
+  { value: "no", label: "No posee RUT" },
+];
+
+/** Largo máximo del cuerpo del RUT (sin DV). */
+const RUT_MAX_DIGITOS = 8;
+/** Largo mínimo aceptado del cuerpo del RUT. */
+const RUT_MIN_DIGITOS = 7;
+
+/** Deja solo dígitos y corta al máximo permitido. */
+const limpiarRut = (v: string) =>
+  v.replace(/\D/g, "").slice(0, RUT_MAX_DIGITOS);
+
+/** Deja solo un carácter: dígito o K (en mayúscula). */
+const limpiarDv = (v: string) =>
+  v
+    .replace(/[^0-9kK]/g, "")
+    .toUpperCase()
+    .slice(-1);
+
+/** Calcula el dígito verificador de un RUT (algoritmo módulo 11). */
+function calcularDv(cuerpo: string): string {
+  let suma = 0;
+  let mult = 2;
+  for (let i = cuerpo.length - 1; i >= 0; i--) {
+    suma += Number(cuerpo[i]) * mult;
+    mult = mult === 7 ? 2 : mult + 1;
+  }
+  const resto = 11 - (suma % 11);
+  if (resto === 11) return "0";
+  if (resto === 10) return "K";
+  return String(resto);
+}
+
+/**
+ * Nacionalidades de Sudamérica. Solo es una ayuda del front:
+ * al backend siempre se envía como texto libre (columna VARCHAR).
+ */
+const NACIONALIDADES = [
+  "Argentina",
+  "Boliviana",
+  "Brasileña",
+  "Chilena",
+  "Colombiana",
+  "Ecuatoriana",
+  "Guyanesa",
+  "Paraguaya",
+  "Peruana",
+  "Surinamesa",
+  "Uruguaya",
+  "Venezolana",
+];
+const NACIONALIDAD_DEFAULT = "Chilena";
+/** Valor interno de la opción "Otro" (no se envía al backend). */
+const NACIONALIDAD_OTRO = "__otro__";
+
+const normalizar = (s: string) =>
+  s
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+/** Traduce el texto guardado a (opción del select, texto libre para "Otro"). */
+function parseNacionalidad(valor?: string | null): {
+  sel: string;
+  otro: string;
+} {
+  const v = (valor ?? "").trim();
+  if (!v) return { sel: NACIONALIDAD_DEFAULT, otro: "" };
+  const match = NACIONALIDADES.find((n) => normalizar(n) === normalizar(v));
+  return match
+    ? { sel: match, otro: "" }
+    : { sel: NACIONALIDAD_OTRO, otro: v };
+}
+
 type FormState = {
+  /** "si" | "no": si el deportista posee RUT */
+  tieneRut: string;
   rut: string;
   digitoVerif: string;
   pNombre: string;
@@ -35,7 +117,10 @@ type FormState = {
   pApellido: string;
   sApellido: string;
   alias: string;
-  nacionalidad: string;
+  /** Opción elegida en el select (una de NACIONALIDADES o NACIONALIDAD_OTRO) */
+  nacionalidadSel: string;
+  /** Texto libre, solo se usa cuando nacionalidadSel === NACIONALIDAD_OTRO */
+  nacionalidadOtro: string;
   fechaNacimiento: string;
   genero: string;
   pesoEnKg: string;
@@ -73,15 +158,23 @@ export default function StudentForm({
           records[d.uuid] = { v: "0", d: "0", e: "0" };
         }
       }
+
+      const rutGuardado = (initial.rut ?? "").trim();
+      const poseeRut =
+        rutGuardado !== "" && rutGuardado.toUpperCase() !== SIN_RUT;
+      const nac = parseNacionalidad(initial.nacionalidad);
+
       return {
-        rut: initial.rut ?? "",
-        digitoVerif: initial.digitoVerif ?? "",
+        tieneRut: poseeRut ? "si" : "no",
+        rut: poseeRut ? limpiarRut(rutGuardado) : "",
+        digitoVerif: poseeRut ? limpiarDv(initial.digitoVerif ?? "") : "",
         pNombre: initial.pNombre,
         sNombre: initial.sNombre ?? "",
         pApellido: initial.pApellido,
         sApellido: initial.sApellido ?? "",
         alias: initial.alias ?? "",
-        nacionalidad: initial.nacionalidad ?? "",
+        nacionalidadSel: nac.sel,
+        nacionalidadOtro: nac.otro,
         fechaNacimiento: initial.fechaNacimiento,
         genero: initial.genero,
         pesoEnKg: String(initial.pesoEnKg),
@@ -91,6 +184,7 @@ export default function StudentForm({
       };
     }
     return {
+      tieneRut: "si",
       rut: "",
       digitoVerif: "",
       pNombre: "",
@@ -98,7 +192,8 @@ export default function StudentForm({
       pApellido: "",
       sApellido: "",
       alias: "",
-      nacionalidad: "Chilena",
+      nacionalidadSel: NACIONALIDAD_DEFAULT,
+      nacionalidadOtro: "",
       fechaNacimiento: "",
       genero: "M",
       pesoEnKg: "",
@@ -108,6 +203,9 @@ export default function StudentForm({
   });
 
   const [error, setError] = useState("");
+
+  const poseeRut = form.tieneRut === "si";
+  const esOtraNacionalidad = form.nacionalidadSel === NACIONALIDAD_OTRO;
 
   // Mapa uuid → nombre de disciplina (incluye las del initial aunque no estén en club.disciplinas)
   const discByUuid = useMemo(() => {
@@ -142,6 +240,35 @@ export default function StudentForm({
       if (error) setError("");
     };
 
+  /**
+   * RUT: solo dígitos, máximo RUT_MAX_DIGITOS. Si el usuario pega un RUT
+   * completo con guion (ej. "12.345.678-5"), el DV se separa solo.
+   */
+  const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const guion = raw.lastIndexOf("-");
+
+    if (guion >= 0) {
+      const cuerpo = limpiarRut(raw.slice(0, guion));
+      const dv = limpiarDv(raw.slice(guion + 1));
+      setForm((f) => ({
+        ...f,
+        rut: cuerpo,
+        digitoVerif: dv || f.digitoVerif,
+      }));
+    } else {
+      setForm((f) => ({ ...f, rut: limpiarRut(raw) }));
+    }
+    if (error) setError("");
+  };
+
+  /** DV: un solo carácter, dígito o K. */
+  const handleDvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dv = limpiarDv(e.target.value);
+    setForm((f) => ({ ...f, digitoVerif: dv }));
+    if (error) setError("");
+  };
+
   const toggleDisciplina = (uuid: string) => {
     setForm((f) => {
       if (f.records[uuid]) {
@@ -173,12 +300,43 @@ export default function StudentForm({
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!form.rut.trim()) return setError("Ingresa el RUT.");
-    if (!form.digitoVerif.trim())
-      return setError("Ingresa el dígito verificador.");
+    if (poseeRut) {
+      const fallaRut = (msg: string, campo: "rut" | "dv") => {
+        setError(msg);
+        document.getElementById(`${uid}-${campo}`)?.focus();
+      };
+
+      const cuerpo = form.rut.trim();
+      const dv = form.digitoVerif.trim().toUpperCase();
+
+      if (!cuerpo) return fallaRut("Ingresa el RUT.", "rut");
+      if (!/^\d+$/.test(cuerpo))
+        return fallaRut("El RUT solo puede contener números.", "rut");
+      if (
+        cuerpo.length < RUT_MIN_DIGITOS ||
+        cuerpo.length > RUT_MAX_DIGITOS
+      )
+        return fallaRut(
+          `El RUT debe tener entre ${RUT_MIN_DIGITOS} y ${RUT_MAX_DIGITOS} dígitos.`,
+          "rut"
+        );
+      if (!dv) return fallaRut("Ingresa el dígito verificador.", "dv");
+      if (!/^[0-9K]$/.test(dv))
+        return fallaRut(
+          "El dígito verificador debe ser un número o la letra K.",
+          "dv"
+        );
+      if (calcularDv(cuerpo) !== dv)
+        return fallaRut(
+          "El RUT no es válido: el dígito verificador no corresponde.",
+          "dv"
+        );
+    }
     if (!form.pNombre.trim()) return setError("Ingresa el primer nombre.");
     if (!form.pApellido.trim())
       return setError("Ingresa el primer apellido.");
+    if (esOtraNacionalidad && !form.nacionalidadOtro.trim())
+      return setError("Escribe la nacionalidad.");
     if (!form.fechaNacimiento)
       return setError("Ingresa la fecha de nacimiento.");
     if (!form.pesoEnKg) return setError("Ingresa el peso.");
@@ -201,16 +359,20 @@ export default function StudentForm({
       e: Number(form.records[uuid].e) || 0,
     }));
 
+    const nacionalidad = esOtraNacionalidad
+      ? form.nacionalidadOtro.trim()
+      : form.nacionalidadSel;
+
     const draft: StudentDraft = {
       id: initial?.id,
-      rut: form.rut.trim(),
-      digitoVerif: form.digitoVerif.trim().toUpperCase(),
+      rut: poseeRut ? form.rut.trim() : SIN_RUT,
+      digitoVerif: poseeRut ? form.digitoVerif.trim().toUpperCase() : "",
       pNombre: form.pNombre.trim(),
       sNombre: form.sNombre.trim() || null,
       pApellido: form.pApellido.trim(),
       sApellido: form.sApellido.trim() || null,
       alias: form.alias.trim() || null,
-      nacionalidad: form.nacionalidad.trim() || null,
+      nacionalidad: nacionalidad || null,
       fechaNacimiento: form.fechaNacimiento,
       genero: form.genero,
       pesoEnKg: peso,
@@ -236,24 +398,54 @@ export default function StudentForm({
         </p>
       )}
 
+      {/* Identificación */}
+      <Field label="Identificación" htmlFor={`${uid}-ident`}>
+        <SelectInput
+          id={`${uid}-ident`}
+          value={form.tieneRut}
+          onChange={setText("tieneRut")}
+        >
+          {IDENTIFICACION.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </SelectInput>
+      </Field>
+
       {/* RUT */}
-      <div className="grid grid-cols-[2fr_1fr] gap-x-3 max-[480px]:grid-cols-1">
+      <div
+        className={`grid grid-cols-[2fr_1fr] gap-x-3 max-[480px]:grid-cols-1 ${
+          poseeRut
+            ? ""
+            : "[&_input:disabled]:cursor-not-allowed [&_input:disabled]:border-[#d1d5db] [&_input:disabled]:bg-[#e5e7eb] [&_input:disabled]:text-[#6b7280] [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:#6b7280] [&_input:disabled]:placeholder:text-[#9ca3af] [&_label]:text-[#9ca3af]"
+        }`}
+      >
         <Field label="RUT" htmlFor={`${uid}-rut`}>
           <TextInput
             id={`${uid}-rut`}
-            value={form.rut}
-            onChange={setText("rut")}
+            value={poseeRut ? form.rut : SIN_RUT}
+            onChange={handleRutChange}
             placeholder="12345678"
             inputMode="numeric"
+            autoComplete="off"
+            disabled={!poseeRut}
           />
+          {poseeRut && (
+            <p className="mt-1 text-xs text-[color:var(--muted)]">
+              Solo números, sin puntos ni guion (7 u 8 dígitos).
+            </p>
+          )}
         </Field>
         <Field label="DV" htmlFor={`${uid}-dv`}>
           <TextInput
             id={`${uid}-dv`}
-            value={form.digitoVerif}
-            onChange={setText("digitoVerif")}
-            placeholder="9"
-            maxLength={1}
+            value={poseeRut ? form.digitoVerif : ""}
+            onChange={handleDvChange}
+            placeholder="9 o K"
+            autoComplete="off"
+            autoCapitalize="characters"
+            disabled={!poseeRut}
           />
         </Field>
       </div>
@@ -305,12 +497,30 @@ export default function StudentForm({
           />
         </Field>
         <Field label="Nacionalidad" htmlFor={`${uid}-nac`}>
-          <TextInput
+          <SelectInput
             id={`${uid}-nac`}
-            value={form.nacionalidad}
-            onChange={setText("nacionalidad")}
-            placeholder="Chilena"
-          />
+            value={form.nacionalidadSel}
+            onChange={setText("nacionalidadSel")}
+          >
+            {NACIONALIDADES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+            <option value={NACIONALIDAD_OTRO}>Otro</option>
+          </SelectInput>
+          {esOtraNacionalidad && (
+            <div className="mt-2">
+              <TextInput
+                id={`${uid}-nac-otro`}
+                aria-label="Especifica la nacionalidad"
+                value={form.nacionalidadOtro}
+                onChange={setText("nacionalidadOtro")}
+                placeholder="Ej: Mexicana"
+                maxLength={100}
+              />
+            </div>
+          )}
         </Field>
       </div>
 

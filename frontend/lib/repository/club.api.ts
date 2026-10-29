@@ -57,6 +57,7 @@ export type ClubDeportista = {
   uuid: string;
   rut: string | null;
   digito_verif: string | null;
+  codigo_interno: string;
   p_nombre: string;
   s_nombre: string | null;
   p_apellido: string;
@@ -68,6 +69,7 @@ export type ClubDeportista = {
   peso_en_kg: number | string;
   estatura_en_cm: number | string | null;
   activo: boolean;
+  aparecer_busqueda: boolean;
   /** Record legacy por disciplina. 0..N (puede ser []). */
   records: ClubDeportistaRecord[];
 };
@@ -124,6 +126,37 @@ export type ClubCrearInput = {
 export type ClubActualizarInput = Partial<ClubCrearInput>;
 
 // =====================================================
+// Helpers de normalización
+// =====================================================
+
+/**
+ * MySQL devuelve los BOOLEAN dentro de JSON_OBJECT como 1/0.
+ * Convierte números a boolean y deja `undefined` como está, para que un
+ * campo que el backend NO envía siga siendo visible como `undefined`
+ * (en vez de aparecer disfrazado de `false`).
+ */
+function _aBool(v: unknown): boolean {
+  return (typeof v === "number" ? v !== 0 : v) as boolean;
+}
+
+function _normalizarDeportista(d: ClubDeportista): ClubDeportista {
+  return {
+    ...d,
+    activo: _aBool(d.activo),
+    aparecer_busqueda: _aBool(d.aparecer_busqueda),
+  };
+}
+
+/** Deja los booleanos del club (y de sus deportistas) como true/false reales. */
+function _normalizarClub(c: Club): Club {
+  return {
+    ...c,
+    activo: _aBool(c.activo),
+    deportistas: (c.deportistas ?? []).map(_normalizarDeportista),
+  };
+}
+
+// =====================================================
 // API
 // =====================================================
 
@@ -131,7 +164,7 @@ const clubApi = {
   // GET /clubes
   async listar(): Promise<Club[]> {
     const data = await apiGet<{ clubes_data: Club[] }>("/clubes");
-    return data.clubes_data;
+    return data.clubes_data.map(_normalizarClub);
   },
 
   // GET /clubes/por-usuario/:uuid
@@ -142,7 +175,7 @@ const clubApi = {
     const data = await apiGet<{ clubes_data: Club[] }>(
       `/clubes/por-usuario/${usuarioUuid}`
     );
-    return data.clubes_data;
+    return data.clubes_data.map(_normalizarClub);
   },
 
   // GET /clubes/por-usuario/:uuid → primer club o null
@@ -158,13 +191,13 @@ const clubApi = {
   // GET /clubes/:uuid
   async buscarPorUuid(uuid: string): Promise<Club> {
     const data = await apiGet<{ club_data: Club }>(`/clubes/${uuid}`);
-    return data.club_data;
+    return _normalizarClub(data.club_data);
   },
 
   // POST /clubes
   async crear(datos: ClubCrearInput): Promise<Club> {
     const data = await apiPost<{ club_data: Club }>("/clubes", datos);
-    return data.club_data;
+    return _normalizarClub(data.club_data);
   },
 
   // PATCH /clubes/:uuid
@@ -176,13 +209,13 @@ const clubApi = {
       `/clubes/${uuid}`,
       datos
     );
-    return data.club_data;
+    return _normalizarClub(data.club_data);
   },
 
   // DELETE /clubes/:uuid (soft delete)
   async eliminar(uuid: string): Promise<Club> {
     const data = await apiDelete<{ club_data: Club }>(`/clubes/${uuid}`);
-    return data.club_data;
+    return _normalizarClub(data.club_data);
   },
 };
 

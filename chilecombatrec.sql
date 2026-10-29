@@ -586,6 +586,7 @@ CREATE TABLE entrenador_disciplina (
 
 CREATE TABLE deportista (
     uuid BINARY(16) DEFAULT (UUID_TO_BIN(UUID(), 1)) PRIMARY KEY,
+    codigo_interno  BINARY(16)  DEFAULT (UUID_TO_BIN(UUID(), 1)) NOT NULL UNIQUE,
     rut VARCHAR(12),
     digito_verif VARCHAR(1),
     p_nombre VARCHAR(100) NOT NULL,
@@ -601,7 +602,8 @@ CREATE TABLE deportista (
     fecha_registro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modificado_en DATETIME,
     activo BOOLEAN NOT NULL DEFAULT true,
-    eliminado_en DATETIME
+    eliminado_en DATETIME,
+    aparecer_busqueda BOOLEAN NOT NULL DEFAULT false
 );
 
 -- Esto esta pensado en el caso poco probable de que un deportista cambie de club

@@ -58,7 +58,7 @@ const roles = [
   },
 ];
 
-const disciplines = ["MMA", "Boxeo", "Kickboxing", "Muay Thai", "Jiu-Jitsu"];
+const disciplines = ["MMA", "Boxeo", "Kickboxing", "Muay Thai"];
 
 /* Datos de ejemplo tomados de los datos de prueba de la app. */
 const sampleRivals = [

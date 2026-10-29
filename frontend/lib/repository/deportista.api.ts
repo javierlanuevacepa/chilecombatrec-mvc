@@ -47,6 +47,7 @@ export type Deportista = {
   fecha_registro: string;
   modificado_en: string | null;
   eliminado_en: string | null;
+  aparecer_busqueda: boolean;
   clubs: DeportistaClub[];
   disciplinas: DeportistaDisciplina[];
   /** Un record por disciplina. 0..N (puede ser []). */
@@ -113,8 +114,13 @@ export type DeportistaCrearInput = {
  *
  * El backend actualiza el record existente si la disciplina ya tenía
  * uno (ON DUPLICATE KEY UPDATE → sobrescribe v/d/e).
+ *
+ * `aparecer_busqueda` queda fuera a propósito: solo se cambia con
+ * `deportistaApi.cambiarAparecerBusqueda` (el backend lo ignora aquí).
  */
-export type DeportistaActualizarInput = Partial<DeportistaCrearInput>;
+export type DeportistaActualizarInput = Partial<
+  Omit<DeportistaCrearInput, "aparecer_busqueda">
+>;
 
 // =====================================================
 // Helpers puros (sin dependencia de la API)
@@ -124,6 +130,18 @@ function _toNum(v: number | string | null | undefined): number {
   if (v == null) return 0;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * MySQL devuelve los BOOLEAN dentro de JSON_OBJECT como 1/0.
+ * Los convierte a boolean real para que coincida con el tipo `Deportista`.
+ */
+function _normalizarDeportista(d: Deportista): Deportista {
+  return {
+    ...d,
+    activo: Boolean(d.activo),
+    aparecer_busqueda: Boolean(d.aparecer_busqueda),
+  };
 }
 
 /**
@@ -175,7 +193,7 @@ const deportistaApi = {
     const data = await apiGet<{ deportistas_data: Deportista[] }>(
       "/deportistas"
     );
-    return data.deportistas_data;
+    return data.deportistas_data.map(_normalizarDeportista);
   },
 
   // GET /deportistas/:uuid — detalle con records por disciplina
@@ -183,7 +201,7 @@ const deportistaApi = {
     const data = await apiGet<{ deportista_data: Deportista }>(
       `/deportistas/${uuid}`
     );
-    return data.deportista_data;
+    return _normalizarDeportista(data.deportista_data);
   },
 
   // POST /deportistas — versión "admin de sistema" (exige clubs)
@@ -209,7 +227,7 @@ const deportistaApi = {
       "/deportistas",
       payload
     );
-    return data.deportista_data;
+    return _normalizarDeportista(data.deportista_data);
   },
 
   /**
@@ -251,7 +269,34 @@ const deportistaApi = {
       `/deportistas/${uuid}`,
       datos
     );
-    return data.deportista_data;
+    return _normalizarDeportista(data.deportista_data);
+  },
+
+  /**
+   * PATCH /deportistas/:uuid/aparecer-busqueda
+   *
+   * Activa (`true`) o desactiva (`false`) que el deportista aparezca en
+   * la búsqueda de combates y el ranking. Es el ÚNICO camino para
+   * cambiarlo: `actualizar` no lo acepta.
+   *
+   *   await deportistaApi.cambiarAparecerBusqueda(d.uuid, e.target.checked);
+   */
+  async cambiarAparecerBusqueda(
+    uuid: string,
+    aparecerBusqueda: boolean
+  ): Promise<Deportista> {
+    if (!uuid) {
+      throw new Error("El deportista es obligatorio");
+    }
+    if (typeof aparecerBusqueda !== "boolean") {
+      throw new Error("aparecer_busqueda debe ser true o false");
+    }
+
+    const data = await apiPatch<{ deportista_data: Deportista }>(
+      `/deportistas/${uuid}/aparecer-busqueda`,
+      { aparecer_busqueda: aparecerBusqueda }
+    );
+    return _normalizarDeportista(data.deportista_data);
   },
 
   // DELETE /deportistas/:uuid (soft delete)

@@ -13,6 +13,16 @@ import clubApi, {
 // Tipos
 // =====================================================
 
+export type RefrescarOpciones = {
+  /**
+   * `true` → vuelve a pedir el club SIN poner `cargando = true`, así la
+   * pantalla no se reemplaza por "Cargando…" ni se desmonta. Si el GET
+   * falla, conserva el club actual en vez de mostrar el error.
+   * Útil tras acciones pequeñas (ej. el check de "aparecer en búsqueda").
+   */
+  silencioso?: boolean;
+};
+
 export type UseMiClubReturn = {
   /** Club del usuario logueado, o null si no tiene / no cargó */
   club: Club | null;
@@ -33,8 +43,8 @@ export type UseMiClubReturn = {
   /** Limpia `errorGuardado` (útil al reabrir un modal o cambiar de pestaña) */
   limpiarErrorGuardado: () => void;
 
-  /** Re-fetch del club (GET) */
-  refrescar: () => Promise<void>;
+  /** Re-fetch del club (GET). Con `{ silencioso: true }` no activa `cargando`. */
+  refrescar: (opciones?: RefrescarOpciones) => Promise<void>;
 
   /**
    * PATCH del club del usuario.
@@ -62,11 +72,14 @@ export function useMiClub(): UseMiClubReturn {
   const requestIdRef = useRef(0);
 
   // ── GET ────────────────────────────────────────────
-  const cargar = useCallback(async (usuarioUuid: string) => {
+  const cargar = useCallback(
+    async (usuarioUuid: string, silencioso = false) => {
     const myId = ++requestIdRef.current;
 
-    setCargando(true);
-    setError(null);
+    if (!silencioso) {
+      setCargando(true);
+      setError(null);
+    }
 
     try {
       const data = await clubApi.obtenerMiClub(usuarioUuid);
@@ -76,16 +89,23 @@ export function useMiClub(): UseMiClubReturn {
       if (myId !== requestIdRef.current) return;
       console.error("Error al obtener el club:", err);
 
+      // Refresco silencioso: no reemplazamos el club visible por un error.
+      if (silencioso) return;
+
       const mensaje = isAxiosError(err)
         ? (err.response?.data as { error?: string } | undefined)?.error
         : undefined;
       setError(mensaje ?? "No pudimos cargar la información del club.");
     } finally {
+      // Sin condición por `silencioso`: si este request reemplazó a uno
+      // normal que seguía en vuelo, `cargando` no puede quedar en true.
       if (myId === requestIdRef.current) {
         setCargando(false);
       }
     }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (cargandoAuth) return;
@@ -103,10 +123,13 @@ export function useMiClub(): UseMiClubReturn {
     void cargar(usuario.uuid);
   }, [usuario?.uuid, cargandoAuth, cargar]);
 
-  const refrescar = useCallback(async () => {
-    if (!usuario?.uuid) return;
-    await cargar(usuario.uuid);
-  }, [usuario?.uuid, cargar]);
+  const refrescar = useCallback(
+    async (opciones?: RefrescarOpciones) => {
+      if (!usuario?.uuid) return;
+      await cargar(usuario.uuid, opciones?.silencioso === true);
+    },
+    [usuario?.uuid, cargar]
+  );
 
   // ── PATCH ──────────────────────────────────────────
   const actualizarClub = useCallback(

@@ -13,6 +13,7 @@ export type StudentRecord = {
 
 export type Student = {
   id: string;
+  codigo_interno: string;
   rut: string | null;
   digitoVerif: string | null;
   pNombre: string;
@@ -24,6 +25,7 @@ export type Student = {
   fechaNacimiento: string;   // YYYY-MM-DD
   genero: string;            // 'M' | 'F' | 'O'
   pesoEnKg: number;
+  aparecer_busqueda: boolean;
   estaturaEnCm: number | null;
   disciplinas: StudentDisciplina[];
   records: StudentRecord[];

@@ -306,6 +306,7 @@ const _SELECT_CLUB = `
                 'uuid',            BIN_TO_UUID(d.uuid, 1),
                 'rut',             d.rut,
                 'digito_verif',    d.digito_verif,
+                'codigo_interno',  BIN_TO_UUID(d.codigo_interno, 1),
                 'p_nombre',        d.p_nombre,
                 's_nombre',        d.s_nombre,
                 'p_apellido',      d.p_apellido,

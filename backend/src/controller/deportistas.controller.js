@@ -67,7 +67,6 @@ async function registrar(req, res) {
     // Validación mínima de presencia: el service valida reglas de negocio
     if (
       !rut ||
-      !digito_verif ||
       !p_nombre ||
       !p_apellido ||
       !fecha_nacimiento ||
@@ -76,7 +75,7 @@ async function registrar(req, res) {
     ) {
       return error(
         res,
-        "RUT, dígito verificador, primer nombre, primer apellido, fecha de nacimiento, género y peso son obligatorios",
+        "RUT, primer nombre, primer apellido, fecha de nacimiento, género y peso son obligatorios",
         400
       );
     }
@@ -103,7 +102,10 @@ async function registrar(req, res) {
   } catch (err) {
     console.error("Error en registrar (deportista):", err.message);
 
-    if (err.message.includes("Ya existe")) {
+    if (
+      err.message.includes("Ya existe") ||
+      err.message.includes("ya está en uso")
+    ) {
       return error(res, err.message, 409);
     }
     if (
@@ -196,7 +198,10 @@ async function actualizar(req, res) {
     if (err.message.includes("no encontrado")) {
       return error(res, err.message, 404);
     }
-    if (err.message.includes("Ya existe")) {
+    if (
+      err.message.includes("Ya existe") ||
+      err.message.includes("ya está en uso")
+    ) {
       return error(res, err.message, 409);
     }
     if (
@@ -242,6 +247,45 @@ async function eliminar(req, res) {
   }
 }
 
+
+
+// APARECER EN BÚSQUEDA (activar / desactivar)
+// ===============================================================
+// PATCH /deportistas/:uuid/aparecer-busqueda   body: { "aparecer_busqueda": true | false }
+async function cambiarAparecerBusqueda(req, res) {
+  try {
+    const { uuid } = req.params;
+    const { aparecer_busqueda } = req.body ?? {};
+
+    if (!uuid) {
+      return error(res, "El uuid es obligatorio", 400);
+    }
+    if (typeof aparecer_busqueda !== "boolean") {
+      return error(res, "aparecer_busqueda debe ser true o false", 400);
+    }
+
+    const deportista = await deportistasService.cambiarAparecerBusqueda({
+      uuid,
+      aparecer_busqueda,
+    });
+    return exito(res, { deportista_data: deportista }, 200);
+  } catch (err) {
+    console.error("Error en cambiarAparecerBusqueda (deportista):", err.message);
+
+    if (err.message.includes("no encontrado")) {
+      return error(res, err.message, 404);
+    }
+    if (
+      err.message.includes("obligatorio") ||
+      err.message.includes("debe ser")
+    ) {
+      return error(res, err.message, 400);
+    }
+
+    return error(res, "Error al cambiar la visibilidad en búsqueda", 500);
+  }
+}
+
 // ===============================================================
 // EXPORTS
 // ===============================================================
@@ -251,4 +295,5 @@ module.exports = {
   registrar,
   actualizar,
   eliminar,
+  cambiarAparecerBusqueda
 };
