@@ -14,13 +14,12 @@ type LoginModuloProps = {
 
 /**
  * Códigos de rol del backend (parametro.tipo_parametro = ROLES) → ruta del front.
- *  - ADMIN       : admin de sistema        → módulo de admin
- *  - ADMIN_CLUB  : admin de club de combate → módulo de admin
+ *  - ADMIN       : admin de sistema        → módulo SuperAdmin
+ *  - ADMIN_CLUB  : admin de club de combate → módulo de admin club
  *  - COACH_CLUB  : entrenador de club      → panel de coach
- * Ajusta el destino si ADMIN va a otro módulo distinto.
  */
 const RUTA_POR_ROL: Record<string, string> = {
-  ADMIN: "/backoffice/modulos/adminClub",
+  ADMIN: "/backoffice/modulos/superadmin",
   ADMIN_CLUB: "/backoffice/modulos/adminClub",
   COACH_CLUB: "/backoffice/modulos/coach",
 };
@@ -60,26 +59,16 @@ export default function LoginModulo({ onForgotPassword }: LoginModuloProps) {
       const result = await login(email.trim(), password);
 
       if (!result.ok) {
-        // `result.mensaje` cubre: 401 (credenciales), 403 (sinPassword),
-        // y errores de red (ya formateados por el hook).
         setError(result.mensaje);
         setPending(false);
         return;
       }
 
-      // El hook ya persistió la sesión en localStorage de forma síncrona
-      // dentro de `SessionService.guardarSesion`. Leemos el rol para decidir.
       const rol = SessionService.getRol();
       const destino = rutaPorRol(rol?.codigo);
 
-      // `replace` para no dejar la pantalla de login en el historial
-      // cuando el usuario ya está autenticado.
       router.replace(destino);
-      // No reseteamos `pending`: el componente se desmonta al navegar.
     } catch (err) {
-      // El hook nunca lanza (captura internamente), así que esto solo
-      // cubriría fallos exóticos (ej. router roto). Mantener el estado
-      // utilizable es mejor que dejar la UI colgada.
       console.error("Error inesperado en login:", err);
       setError("Error inesperado. Intenta nuevamente.");
       setPending(false);

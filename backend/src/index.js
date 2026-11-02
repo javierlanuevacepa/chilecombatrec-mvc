@@ -17,6 +17,7 @@ const coachesRoutes = require("./routes/coaches.routes");
 const deportistasRoutes = require("./routes/deportistas.routes");
 const clubesRoutes = require("./routes/clubes.routes");
 const disciplinasRoutes = require("./routes/disciplinas.routes");
+const superadminRoutes = require("./routes/superadmin.routes");
 // const clubesRoutes = require("./routes/clubes.routes");
 // const deportistasRoutes = require("./routes/deportistas.routes");
 // const enfrentamientosRoutes = require("./routes/enfrentamientos.routes");
@@ -84,6 +85,7 @@ async function iniciar() {
    app.use(`/api/${VERSION}/deportistas`, deportistasRoutes);
    app.use(`/api/${VERSION}/clubes`,      clubesRoutes);
    app.use(`/api/${VERSION}/disciplinas`, disciplinasRoutes);
+   app.use(`/api/${VERSION}/superadmin`, superadminRoutes);
   // app.use(`/api/${VERSION}/enfrentamientos`, enfrentamientosRoutes);
   // app.use(`/api/${VERSION}/regiones`, regionesRoutes);
   // app.use(`/api/${VERSION}/comunas`, comunasRoutes);
