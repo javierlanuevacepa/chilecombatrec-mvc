@@ -13,6 +13,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
+  Loader2,
+  Mail,
   Phone,
   Swords,
   Users,
@@ -29,21 +31,21 @@ import { Student } from "@/components/backoffice/types/student";
 
 import { useMiClub } from "@/lib/hooks/useMiClub";
 import { useDeportistasClub } from "@/lib/hooks/useDeportistasClub";
+import { useBusquedaCombate } from "@/lib/hooks/useBusquedaCombate";
 import deportistaApi from "@/lib/repository/deportista.api";
-import { useRivales } from "@/lib/hooks/useRivales";
-import { mapDeportistaToStudent } from  "@/lib/mappers/club.mappers";
+import type { BusquedaCombateCandidato } from "@/lib/repository/busqueda.combate.api";
+import { mapDeportistaToStudent } from "@/lib/mappers/club.mappers";
 
 /* -------------------------------------------------------------------------- */
 
-/** Ajusta a la ruta real del login y al nombre del segmento dinámico ([id]). */
 const LOGIN_ROUTE = "/backoffice/login";
+const LIMITE_CANDIDATOS = 4;
 
 /* ------------------------- Datos del deportista -------------------------- */
 
 const nombreCompleto = (s: Student): string =>
   [s.pNombre, s.sNombre, s.pApellido, s.sApellido].filter(Boolean).join(" ");
 
-/** Edad en años a partir de fecha_nacimiento (YYYY-MM-DD). */
 function yearsSince(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
@@ -65,7 +67,6 @@ function formatDateDMY(dateStr: string | null | undefined): string | null {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
-/** 18432109 + "5" -> 18.432.109-5. Devuelve null si no hay RUT. */
 function formatearRut(
   rut: string | null | undefined,
   dv: string | null | undefined
@@ -89,11 +90,6 @@ const etiquetaGenero = (g: string | null | undefined): string | null => {
 
 const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
 
-/**
- * Lee un booleano venga como viniere: true/false, 1/0 (MySQL dentro de un
- * JSON_OBJECT) o "1"/"0"/"true"/"false". Devuelve `undefined` si el dato no
- * viene o no se entiende.
- */
 function leerBooleano(v: unknown): boolean | undefined {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v !== 0;
@@ -102,8 +98,49 @@ function leerBooleano(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Detalle de estudiante                                                       */
+function nombreCandidato(c: BusquedaCombateCandidato): string {
+  return [c.p_nombre, c.s_nombre, c.p_apellido, c.s_apellido]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * Extrae el teléfono/correo "del club" del candidato:
+ * prioriza los datos institucionales del club; si no hay,
+ * toma el primer coach con ese dato.
+ */
+function contactoClub(c: BusquedaCombateCandidato): {
+  clubNombre: string | null;
+  telefono: string | null;
+  correo: string | null;
+  contactoEsCoach: boolean;
+} {
+  const club = c.clubs[0];
+  if (!club) {
+    return { clubNombre: null, telefono: null, correo: null, contactoEsCoach: false };
+  }
+
+  if (club.telefono || club.correo_institucional) {
+    return {
+      clubNombre: club.nombre,
+      telefono: club.telefono,
+      correo: club.correo_institucional,
+      contactoEsCoach: false,
+    };
+  }
+
+  const coachConTel = club.coaches.find((co) => co.telefono);
+  const coachConCorreo = club.coaches.find((co) => co.correo);
+  const coach = coachConTel ?? coachConCorreo;
+
+  return {
+    clubNombre: club.nombre,
+    telefono: coach?.telefono ?? null,
+    correo: coach?.correo ?? null,
+    contactoEsCoach: Boolean(coach),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 
 export default function EstudianteDetalleModulo() {
@@ -115,18 +152,21 @@ export default function EstudianteDetalleModulo() {
   const studentId = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const { club, usuario, cargando, error, sinClub, refrescar } = useMiClub();
-  // Mutaciones de deportistas; `refrescar` se usa en modo silencioso para
-  // el check de búsqueda (la ficha no vuelve a "Cargando…").
   const deportistasCrud = useDeportistasClub(club?.uuid ?? null, refrescar);
-  const { rivales, buscando, error: errorRivales, buscar, limpiar } =
-    useRivales();
+
+  const {
+    candidatos,
+    buscando,
+    error: errorBusqueda,
+    busquedaHecha,
+    buscar,
+    limpiar: limpiarBusqueda,
+  } = useBusquedaCombate();
 
   /* ------------------------- UI local ------------------------------------- */
   const [disciplinaSel, setDisciplinaSel] = useState<string | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  /** Modal de confirmación al desactivar "aparecer en búsqueda". */
   const [confirmDesactivar, setConfirmDesactivar] = useState(false);
-  /** Modal de confirmación al activar "aparecer en búsqueda". */
   const [confirmActivar, setConfirmActivar] = useState(false);
 
   /* -------------------- Deportista desde el club -------------------------- */
@@ -141,10 +181,7 @@ export default function EstudianteDetalleModulo() {
   );
 
   /* ------------- Aparecer en búsqueda: valor y respaldo -------------------- */
-  // Valor que viene en `club.deportistas` (tolerante a 1/0).
   const busquedaDelClub = leerBooleano(deportistaRaw?.aparecer_busqueda);
-  // Si el club no trae el dato, se lee del deportista (GET /deportistas/:uuid).
-  // También guarda el último valor confirmado por el servidor tras cada cambio.
   const [busquedaServidor, setBusquedaServidor] = useState<boolean | null>(null);
   const [busquedaCargando, setBusquedaCargando] = useState(true);
   const faltaBusquedaEnClub =
@@ -172,17 +209,12 @@ export default function EstudianteDetalleModulo() {
 
   /* --------------------- Redirección si no hay sesión --------------------- */
   useEffect(() => {
-    console.log(student);
     if (!cargando && !usuario) {
       router.replace(LOGIN_ROUTE);
     }
   }, [cargando, usuario, router]);
 
   const volver = () => router.back();
-
-  /* ---------------------------------------------------------------------- */
-  /* Estados del hook                                                        */
-  /* ---------------------------------------------------------------------- */
 
   if (cargando) {
     return (
@@ -197,16 +229,10 @@ export default function EstudianteDetalleModulo() {
   if (error) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[color:var(--surface)] px-6 text-center">
-        <AlertCircle
-          size={36}
-          aria-hidden="true"
-          className="text-[color:var(--corner)]"
-        />
+        <AlertCircle size={36} aria-hidden="true" className="text-[color:var(--corner)]" />
         <div>
           <p className="text-base font-medium">No pudimos cargar el club</p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
-            {error}
-          </p>
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">{error}</p>
         </div>
         <Button onClick={() => void refrescar()}>Reintentar</Button>
       </div>
@@ -216,11 +242,7 @@ export default function EstudianteDetalleModulo() {
   if (sinClub || !club || !student) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[color:var(--surface)] px-6 text-center">
-        <AlertCircle
-          size={36}
-          aria-hidden="true"
-          className="text-[color:var(--corner)]"
-        />
+        <AlertCircle size={36} aria-hidden="true" className="text-[color:var(--corner)]" />
         <div>
           <p className="text-base font-medium">Deportista no encontrado</p>
           <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
@@ -242,11 +264,9 @@ export default function EstudianteDetalleModulo() {
   const nacimiento = formatDateDMY(student.fechaNacimiento);
   const rut = formatearRut(student.rut, student.digitoVerif);
 
-  // Último valor confirmado por el servidor, o el que trae el club.
-  // Si ninguno está disponible el interruptor queda deshabilitado (gris) en
-  // vez de mostrarse apagado cuando en realidad podría estar activo.
   const aparecerBusqueda = busquedaServidor ?? busquedaDelClub;
   const busquedaDisponible = aparecerBusqueda !== undefined;
+  const busquedaHabilitada = aparecerBusqueda === true;
 
   const disciplinaActiva =
     student.disciplinas.find((d) => d.uuid === disciplinaSel) ??
@@ -294,7 +314,7 @@ export default function EstudianteDetalleModulo() {
   /* ------------------------------ Acciones -------------------------------- */
   const seleccionarDisciplina = (uuid: string) => {
     setDisciplinaSel(uuid);
-    limpiar();
+    limpiarBusqueda();
   };
 
   const onTabKeyDown = (ev: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -308,8 +328,6 @@ export default function EstudianteDetalleModulo() {
     tabRefs.current[siguiente.uuid]?.focus();
   };
 
-  /* ----------- Aparecer en búsqueda de combate y ranking ------------------ */
-  /** Guarda el valor y toma como verdad lo que devuelve el servidor. */
   const guardarBusqueda = async (valor: boolean) => {
     const actualizado = await deportistasCrud.cambiarAparecerBusqueda(
       student.id,
@@ -319,14 +337,11 @@ export default function EstudianteDetalleModulo() {
   };
 
   const onToggleBusqueda = (ev: ChangeEvent<HTMLInputElement>) => {
+    deportistasCrud.limpiarErrorGuardado();
     if (ev.target.checked) {
-      // Activar: pide confirmación antes de aplicar.
-      deportistasCrud.limpiarErrorGuardado();
       setConfirmActivar(true);
       return;
     }
-    // Desactivar: pide confirmación antes de aplicar.
-    deportistasCrud.limpiarErrorGuardado();
     setConfirmDesactivar(true);
   };
 
@@ -355,6 +370,7 @@ export default function EstudianteDetalleModulo() {
     try {
       await guardarBusqueda(false);
       setConfirmDesactivar(false);
+      limpiarBusqueda();
     } catch {
       /* errorGuardado se muestra dentro del modal, que queda abierto */
     }
@@ -362,15 +378,16 @@ export default function EstudianteDetalleModulo() {
 
   const handleBuscar = () => {
     if (!disciplinaActiva) return;
-    void buscar({
-      deportistaId: student.id,
+    if (!busquedaHabilitada) return;
+    void buscar(student.id, {
       disciplinaUuid: disciplinaActiva.uuid,
-      disciplinaNombre: disciplinaActiva.nombre,
-      genero: student.genero,
-      pesoEnKg: student.pesoEnKg,
-      totalCombates,
+      limite: LIMITE_CANDIDATOS,
+    }).catch(() => {
+      /* el error ya vive en `errorBusqueda` */
     });
   };
+
+  /* ---------------------------------------------------------------------- */
 
   return (
     <div className="min-h-[100dvh] text-[color:var(--ink)] [--control-border:#7c8a9c] [background-image:repeating-linear-gradient(125deg,rgba(20,35,58,0.028)_0,rgba(20,35,58,0.028)_1px,transparent_1px,transparent_64px)]">
@@ -447,14 +464,10 @@ export default function EstudianteDetalleModulo() {
           </section>
         )}
 
-        {/* Aparecer en búsqueda de combate y ranking */}
+        {/* Aparecer en búsqueda */}
         <section aria-label="Visibilidad del deportista" className="mt-4">
           <Panel innerClassName="px-[18px] py-4">
             <div className="flex items-start gap-3">
-              {/* Interruptor: apagado = perilla a la izquierda y fondo rojo;
-                  encendido = perilla a la derecha y fondo verde. El input real
-                  (invisible) queda encima para conservar clic, teclado y
-                  lectores de pantalla. */}
               <span className="relative mt-px inline-flex h-6 w-11 shrink-0">
                 <input
                   id={`${uid}-busqueda`}
@@ -502,10 +515,7 @@ export default function EstudianteDetalleModulo() {
                   </p>
                 )}
                 {deportistasCrud.guardando && !confirmDesactivar && !confirmActivar && (
-                  <p
-                    role="status"
-                    className="mt-1 text-[13px] text-[color:var(--muted)]"
-                  >
+                  <p role="status" className="mt-1 text-[13px] text-[color:var(--muted)]">
                     Guardando…
                   </p>
                 )}
@@ -528,11 +538,7 @@ export default function EstudianteDetalleModulo() {
             id={`${uid}-record`}
             className="mb-4 flex items-center gap-2 text-lg font-semibold"
           >
-            <Swords
-              size={18}
-              aria-hidden="true"
-              className="text-[color:var(--corner)]"
-            />
+            <Swords size={18} aria-hidden="true" className="text-[color:var(--corner)]" />
             {disciplinaActiva ? `Récord en ${disciplinaActiva.nombre}` : "Récord"}
           </h2>
 
@@ -606,13 +612,42 @@ export default function EstudianteDetalleModulo() {
                   Récord anterior a la plataforma.
                 </p>
 
-                <Button 
+                <Button
                   className="mt-6"
                   onClick={handleBuscar}
-                  disabled={true}
+                  disabled={!busquedaHabilitada || buscando}
+                  title={
+                    !busquedaHabilitada
+                      ? "Activa 'Aparecer en búsqueda de combate' para poder buscar rivales"
+                      : undefined
+                  }
                 >
-                  {buscando ? "Buscando rivales…" : "Encontrar rival"}
+                  {buscando ? (
+                    <>
+                      <Loader2
+                        size={14}
+                        aria-hidden="true"
+                        className="animate-spin motion-reduce:animate-none"
+                      />
+                      Buscando rivales…
+                    </>
+                  ) : (
+                    <>
+                      <Swords size={14} aria-hidden="true" />
+                      Encontrar rival
+                    </>
+                  )}
                 </Button>
+
+                {!busquedaHabilitada && busquedaDisponible && (
+                  <p className="mt-2 max-w-[520px] text-[13px] text-[color:var(--muted)]">
+                    Activa la opción{" "}
+                    <span className="font-medium text-[color:var(--ink-soft)]">
+                      “Aparecer en algoritmos de búsqueda de combate y ranking”
+                    </span>{" "}
+                    arriba para poder buscar rivales.
+                  </p>
+                )}
               </>
             ) : (
               <EmptyState>
@@ -625,73 +660,173 @@ export default function EstudianteDetalleModulo() {
 
         {/* Rivales sugeridos */}
         <section aria-live="polite" className="mt-8">
-          {errorRivales && (
+          {errorBusqueda && (
             <div
               role="alert"
               className="flex flex-wrap items-center justify-between gap-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
             >
-              <span>{errorRivales}</span>
-              <Button variant="ghost" size="sm" onClick={handleBuscar}  >
+              <span>{errorBusqueda}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBuscar}
+                disabled={!busquedaHabilitada}
+              >
                 Reintentar
               </Button>
             </div>
           )}
 
-          {rivales && disciplinaActiva && (
+          {buscando && disciplinaActiva && (
+            <>
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Loader2
+                  size={18}
+                  aria-hidden="true"
+                  className="animate-spin text-[color:var(--corner)] motion-reduce:animate-none"
+                />
+                Buscando rivales en {disciplinaActiva.nombre}…
+              </h2>
+              <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
+                Comparando edad, peso, experiencia y tiempo de entrenamiento.
+              </p>
+              <ul className="flex flex-col gap-2.5">
+                {Array.from({ length: LIMITE_CANDIDATOS }).map((_, i) => (
+                  <li
+                    key={`sk-${i}`}
+                    className="animate-pulse rounded-[2px] border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5 motion-reduce:animate-none"
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-11 w-11 shrink-0 rounded-full bg-[color:var(--line)]" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-2/3 rounded bg-[color:var(--line)]" />
+                        <div className="h-3 w-1/2 rounded bg-[color:var(--line)]" />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-3">
+                      <div className="h-3 w-16 rounded bg-[color:var(--line)]" />
+                      <div className="h-3 w-16 rounded bg-[color:var(--line)]" />
+                      <div className="h-3 w-24 rounded bg-[color:var(--line)]" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {!buscando && !errorBusqueda && busquedaHecha && disciplinaActiva && (
             <>
               <h2 className="text-lg font-semibold">
                 Rivales sugeridos en {disciplinaActiva.nombre}
               </h2>
               <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
-                De otras escuelas, con experiencia similar.
+                De otras escuelas, con experiencia y contextura similares.
               </p>
 
-              {rivales.length === 0 ? (
+              {candidatos.length === 0 ? (
                 <EmptyState>
-                  No se encontraron rivales de otras escuelas en esta
-                  disciplina.
+                  No se encontraron rivales compatibles en esta disciplina.
+                  Prueba más tarde o revisa el récord del deportista.
                 </EmptyState>
               ) : (
                 <ul className="flex flex-col gap-2.5">
-                  {rivales.map((r) => {
-                    const total = r.record.v + r.record.d + r.record.e;
+                  {candidatos.map((c) => {
+                    const nombreRival = nombreCandidato(c);
+                    const { clubNombre, telefono, correo, contactoEsCoach } =
+                      contactoClub(c);
+                    const sinContacto = !telefono && !correo;
+                    const totalC = c.total_peleas;
+
                     return (
                       <li
-                        key={r.id}
+                        key={c.uuid}
                         className="border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-[15px] font-medium">
-                              {r.nombre}
-                            </p>
-                            <p className="mt-0.5 text-sm text-[color:var(--muted)]">
-                              {r.clubNombre}
-                            </p>
+                        {/* Cabecera: avatar + nombre + alias + club */}
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            name={nombreRival}
+                            className="h-11 w-11 shrink-0 text-base"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <p className="text-[15px] font-medium">{nombreRival}</p>
+                              {c.alias && (
+                                <span className="text-[13px] text-[color:var(--ink-soft)]">
+                                  “{c.alias}”
+                                </span>
+                              )}
+                            </div>
+                            {clubNombre && (
+                              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color:var(--muted)]">
+                                <Users size={12} aria-hidden="true" />
+                                {clubNombre}
+                              </p>
+                            )}
                           </div>
-                          <span className="inline-block rounded-[2px] border border-[color:var(--corner)] bg-[color:var(--corner-tint)] px-2 py-px text-[13px] font-semibold text-[color:var(--corner-dark)]">
-                            {r.disciplinaNombre}
-                          </span>
                         </div>
 
+                        {/* Stats: peso · edad · récord (V-D-E) · total */}
                         <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--muted)]">
-                          <span>{formatearNumero(r.pesoEnKg, "kg")}</span>
-                          <span className="text-[color:var(--ink)] [font-family:var(--font-mono-stack)]">
-                            {r.record.v}-{r.record.d}-{r.record.e}
-                          </span>
+                          <span>{formatearNumero(c.peso_en_kg, "kg")}</span>
                           <span>
-                            {total} {total === 1 ? "combate" : "combates"}
+                            {c.edad} {c.edad === 1 ? "año" : "años"}
+                          </span>
+
+                          {/* Récord del rival: V-D-E en mono, con total al lado */}
+                          <span
+                            className="inline-flex items-baseline gap-1.5"
+                            title="Récord: victorias-derrotas-empates"
+                          >
+                            <span
+                              aria-label={`Récord ${c.total_v} victorias, ${c.total_d} derrotas, ${c.total_e} empates`}
+                              className="text-[color:var(--ink)] [font-family:var(--font-mono-stack)]"
+                            >
+                              {c.total_v}-{c.total_d}-{c.total_e}
+                            </span>
+                            <span>
+                              ({totalC} {totalC === 1 ? "combate" : "combates"})
+                            </span>
                           </span>
                         </div>
 
-                        {r.clubTelefono && (
-                          <a
-                            href={telHref(r.clubTelefono)}
-                            className="mt-2.5 inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] [font-family:var(--font-mono-stack)] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)]"
-                          >
-                            <Phone size={13} aria-hidden="true" />
-                            {r.clubTelefono}
-                          </a>
+                        {/* Contacto del club */}
+                        {!sinContacto ? (
+                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                            {telefono && (
+                              <a
+                                href={telHref(telefono)}
+                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] [font-family:var(--font-mono-stack)] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)]"
+                                title={
+                                  contactoEsCoach
+                                    ? "Teléfono del coach de contacto"
+                                    : "Teléfono del club"
+                                }
+                              >
+                                <Phone size={12} aria-hidden="true" />
+                                {telefono}
+                              </a>
+                            )}
+                            {correo && (
+                              <a
+                                href={`mailto:${correo}`}
+                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)]"
+                                title={
+                                  contactoEsCoach
+                                    ? "Correo del coach de contacto"
+                                    : "Correo del club"
+                                }
+                              >
+                                <Mail size={12} aria-hidden="true" />
+                                {correo}
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-2.5 text-[13px] text-[color:var(--muted)]">
+                            Sin datos de contacto del club.
+                          </p>
                         )}
                       </li>
                     );
@@ -704,10 +839,7 @@ export default function EstudianteDetalleModulo() {
       </main>
 
       {confirmActivar && (
-        <Modal
-          title="Activar aparición en búsquedas"
-          onClose={cerrarConfirmActivar}
-        >
+        <Modal title="Activar aparición en búsquedas" onClose={cerrarConfirmActivar}>
           {deportistasCrud.errorGuardado && (
             <p
               role="alert"
@@ -716,8 +848,6 @@ export default function EstudianteDetalleModulo() {
               {deportistasCrud.errorGuardado}
             </p>
           )}
-          {/* TEXTO DE CONFIRMACIÓN AL ACTIVAR: reemplaza este párrafo
-              (aquí irá el recordatorio de privacidad, contrato, etc.) */}
           <p className="text-sm text-[color:var(--ink-soft)]">
             Si lo activas, “{nombre}” podrá aparecer en los algoritmos de
             búsqueda de combate y ranking. ¿Quieres continuar?

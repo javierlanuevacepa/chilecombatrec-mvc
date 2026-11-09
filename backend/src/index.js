@@ -10,7 +10,7 @@ const pool = require("./config/db");
 const manejadorErrores = require("./middlewares/manejadorErrores");
 
 // =====================================================
-// ROUTES (descomenta a medida que crees cada archivo)
+// ROUTES 
 // =====================================================
 const usuariosRoutes = require("./routes/usuarios.routes");
 const coachesRoutes = require("./routes/coaches.routes");
@@ -18,11 +18,9 @@ const deportistasRoutes = require("./routes/deportistas.routes");
 const clubesRoutes = require("./routes/clubes.routes");
 const disciplinasRoutes = require("./routes/disciplinas.routes");
 const superadminRoutes = require("./routes/superadmin.routes");
-// const clubesRoutes = require("./routes/clubes.routes");
-// const deportistasRoutes = require("./routes/deportistas.routes");
-// const enfrentamientosRoutes = require("./routes/enfrentamientos.routes");
-// const regionesRoutes = require("./routes/regiones.routes");
-// const comunasRoutes = require("./routes/comunas.routes");
+const busquedaCombateRoutes = require("./routes/busqueda.combate.routes");
+
+
 
 // =====================================================
 // CONFIG
@@ -86,9 +84,8 @@ async function iniciar() {
    app.use(`/api/${VERSION}/clubes`,      clubesRoutes);
    app.use(`/api/${VERSION}/disciplinas`, disciplinasRoutes);
    app.use(`/api/${VERSION}/superadmin`, superadminRoutes);
-  // app.use(`/api/${VERSION}/enfrentamientos`, enfrentamientosRoutes);
-  // app.use(`/api/${VERSION}/regiones`, regionesRoutes);
-  // app.use(`/api/${VERSION}/comunas`, comunasRoutes);
+   app.use(`/api/${VERSION}/busqueda-combate`, busquedaCombateRoutes);
+
 
   // Cualquier /api que no exista responde JSON (no cae en Next)
   app.use("/api", (req, res) => {
