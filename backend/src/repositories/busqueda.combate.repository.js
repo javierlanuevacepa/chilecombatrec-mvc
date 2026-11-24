@@ -125,14 +125,18 @@ function _calcularReglas(fighter) {
  *  - Menores de edad: se filtra por edad (±1 año hasta 12, ±2 años 13-17).
  *  - Adultos: la edad no se usa como filtro.
  *  - Peso: ±2 kg para menores, ±4 kg para adultos.
- *  - Peleas:
+ *  - Peleas (el total de peleas SIEMPRE se cuenta ACUMULADO A TRAVÉS DE
+ *    TODAS LAS DISCIPLINAS del deportista, sin importar cuál se esté
+ *    filtrando — un peleador con 8 de boxeo + 4 de Muay Thai tiene 12
+ *    peleas de experiencia):
  *      · Deportistas con < ELITE_PELEAS peleas: ±3 peleas de diferencia.
  *      · Deportistas con >= ELITE_PELEAS peleas (élite):
  *        el rival debe tener al menos el 50 % de sus peleas.
  *        (Evita que un élite de 20 peleas enfrente a un novato de 0.)
  *  - Si se entrega `disciplinaUuid`, se restringe a deportistas que
- *    practiquen esa disciplina, y las peleas / tiempo de entrenamiento
- *    se calculan solo para esa disciplina.
+ *    practiquen esa disciplina. **Ese filtro NO altera el conteo de peleas**
+ *    (que sigue siendo total entre disciplinas), pero SÍ restringe el
+ *    cálculo de `meses_entrenando` a la disciplina filtrada.
  *
  * Cada candidato incluye sus clubes activos con datos de contacto
  * (`correo_institucional`, `telefono`) y, dentro de cada club, sus
@@ -159,6 +163,8 @@ async function buscarCandidatos({
 
   // ------------------------------------------------------------------
   // 1) Cargar datos del deportista solicitante
+  //    - total_peleas: suma TODAS las disciplinas (sin filtro).
+  //    - meses_entrenando: respeta el filtro por disciplina.
   // ------------------------------------------------------------------
   const [fighterRows] = await pool.query(
     `SELECT
@@ -167,11 +173,10 @@ async function buscarCandidatos({
         d.peso_en_kg,
         TIMESTAMPDIFF(YEAR, d.fecha_nacimiento, CURDATE()) AS edad,
         COALESCE((
-            SELECT SUM(v + d + e)
-            FROM deportista_record_legacy
-            WHERE deportista_uuid = d.uuid
-              AND activo = true
-              AND (? IS NULL OR disciplina_uuid = UUID_TO_BIN(?, 1))
+            SELECT SUM(rl.v + rl.d + rl.e)
+            FROM deportista_record_legacy rl
+            WHERE rl.deportista_uuid = d.uuid
+              AND rl.activo = true
         ), 0) AS total_peleas,
         COALESCE((
             SELECT TIMESTAMPDIFF(MONTH, MIN(fecha_registro), CURDATE())
@@ -185,7 +190,7 @@ async function buscarCandidatos({
        AND d.activo = true
        AND d.eliminado_en IS NULL
      LIMIT 1`,
-    [disciplinaUuid, disciplinaUuid, disciplinaUuid, disciplinaUuid, deportistaUuid]
+    [disciplinaUuid, disciplinaUuid, deportistaUuid]
   );
 
   if (fighterRows.length === 0) {
@@ -240,7 +245,8 @@ async function buscarCandidatos({
     )
   `;
 
-  // Regla de peleas: siempre se filtra (novato → BETWEEN, élite → >= mínimo)
+  // Regla de peleas: siempre se filtra (novato → BETWEEN, élite → >= mínimo).
+  // Usamos el alias `total_peleas` (calculado sobre TODAS las disciplinas).
   const havingParts = [];
   if (reglas.margenEdad != null) {
     havingParts.push(
@@ -248,14 +254,28 @@ async function buscarCandidatos({
     );
   }
   if (reglas.esElite) {
-    havingParts.push("COALESCE(SUM(r.v + r.d + r.e), 0) >= ?");
+    havingParts.push("total_peleas >= ?");
   } else {
-    havingParts.push("COALESCE(SUM(r.v + r.d + r.e), 0) BETWEEN ? AND ?");
+    havingParts.push("total_peleas BETWEEN ? AND ?");
   }
   const havingClause = `HAVING ${havingParts.join(" AND ")}`;
 
   // ------------------------------------------------------------------
   // 3) Query de candidatos
+  //
+  //    CAMBIO CLAVE: se elimina el LEFT JOIN con deportista_record_legacy
+  //    y se reemplaza por subqueries correlacionadas que suman los
+  //    records de TODAS las disciplinas. Así:
+  //      - total_peleas / total_v / total_d / total_e reflejan la
+  //        experiencia TOTAL del deportista, no solo la disciplina
+  //        filtrada.
+  //      - Se evita el producto cartesiano entre deportista_record_legacy
+  //        y deportista_disciplina cuando un deportista tiene varias
+  //        disciplinas (que inflaba los SUM).
+  //      - El filtro por disciplina sigue aplicando a:
+  //          · QUÉ deportistas aparecen (existsDisciplina)
+  //          · meses_entrenando (dd join filtrado)
+  //          · coaches mostrados por club
   // ------------------------------------------------------------------
   const sql = `
     SELECT JSON_OBJECT(
@@ -335,20 +355,31 @@ async function buscarCandidatos({
         d.peso_en_kg,
         d.estatura_en_cm,
         TIMESTAMPDIFF(YEAR, d.fecha_nacimiento, CURDATE()) AS edad,
-        COALESCE(SUM(r.v + r.d + r.e), 0) AS total_peleas,
-        COALESCE(SUM(r.v), 0) AS total_v,
-        COALESCE(SUM(r.d), 0) AS total_d,
-        COALESCE(SUM(r.e), 0) AS total_e,
+
+        -- Experiencia TOTAL del deportista (todas las disciplinas)
+        COALESCE((SELECT SUM(rl.v + rl.d + rl.e)
+                  FROM deportista_record_legacy rl
+                  WHERE rl.deportista_uuid = d.uuid AND rl.activo = true), 0) AS total_peleas,
+        COALESCE((SELECT SUM(rl.v)
+                  FROM deportista_record_legacy rl
+                  WHERE rl.deportista_uuid = d.uuid AND rl.activo = true), 0) AS total_v,
+        COALESCE((SELECT SUM(rl.d)
+                  FROM deportista_record_legacy rl
+                  WHERE rl.deportista_uuid = d.uuid AND rl.activo = true), 0) AS total_d,
+        COALESCE((SELECT SUM(rl.e)
+                  FROM deportista_record_legacy rl
+                  WHERE rl.deportista_uuid = d.uuid AND rl.activo = true), 0) AS total_e,
+
+        -- Tiempo entrenando (sí se calcula por disciplina filtrada)
         COALESCE(TIMESTAMPDIFF(MONTH, MIN(dd.fecha_registro), CURDATE()), 0) AS meses_entrenando,
+
         ABS(d.peso_en_kg - ?) AS diferencia_peso,
         ABS(TIMESTAMPDIFF(YEAR, d.fecha_nacimiento, CURDATE()) - ?) AS diferencia_edad,
-        ABS(COALESCE(SUM(r.v + r.d + r.e), 0) - ?) AS diferencia_peleas,
+        ABS(COALESCE((SELECT SUM(rl.v + rl.d + rl.e)
+                      FROM deportista_record_legacy rl
+                      WHERE rl.deportista_uuid = d.uuid AND rl.activo = true), 0) - ?) AS diferencia_peleas,
         ABS(COALESCE(TIMESTAMPDIFF(MONTH, MIN(dd.fecha_registro), CURDATE()), 0) - ?) AS diferencia_meses_entrenando
       FROM deportista d
-      LEFT JOIN deportista_record_legacy r
-          ON r.deportista_uuid = d.uuid
-         AND r.activo = true
-         AND (? IS NULL OR r.disciplina_uuid = UUID_TO_BIN(?, 1))
       LEFT JOIN deportista_disciplina dd
           ON dd.deportista_uuid = d.uuid
          AND dd.activo = true
@@ -387,35 +418,35 @@ async function buscarCandidatos({
   params.push(fighter.total_peleas);
   params.push(fighter.meses_entrenando);
 
-  // (c) LEFT JOIN record  → (? IS NULL OR r.disciplina_uuid = UUID_TO_BIN(?,1))
+  // (c) LEFT JOIN deportista_disciplina (meses_entrenando por disciplina).
+  //     NOTA: ya NO existe el LEFT JOIN a deportista_record_legacy, por lo
+  //     que aquí solo va el par de parámetros del join de disciplinas.
   params.push(disciplinaUuid, disciplinaUuid);
 
-  // (d) LEFT JOIN disciplina → (? IS NULL OR dd.disciplina_uuid = UUID_TO_BIN(?,1))
-  params.push(disciplinaUuid, disciplinaUuid);
-
-  // (e) WHERE
+  // (d) WHERE
   params.push(deportistaUuid);              // d.uuid <> UUID_TO_BIN(?,1)
   params.push(fighter.genero);              // d.genero = ?
   params.push(reglas.pesoMin);              // BETWEEN ? AND ?
   params.push(reglas.pesoMax);
   params.push(deportistaUuid);              // excluirMismoClub (dc_src)
 
-  // (f) EXISTS disciplina (opcional)
+  // (e) EXISTS disciplina (opcional)
   if (disciplinaUuid) params.push(disciplinaUuid);
 
-  // (g) HAVING — edad (opcional)
+  // (f) HAVING — edad (opcional)
   if (reglas.margenEdad != null) {
     params.push(fighter.edad, reglas.margenEdad);
   }
 
-  // (h) HAVING — peleas (siempre, cambia el shape según élite / novato)
+  // (g) HAVING — peleas (siempre, cambia el shape según élite / novato).
+  //     Se evalúa contra `total_peleas`, que ya suma todas las disciplinas.
   if (reglas.esElite) {
     params.push(reglas.peleasMin);          // >= ?
   } else {
     params.push(reglas.peleasMin, reglas.peleasMax); // BETWEEN ? AND ?
   }
 
-  // (i) LIMIT
+  // (h) LIMIT
   const limitSeguro = Number(limite) > 0 ? Number(limite) : LIMITE_CANDIDATOS;
   params.push(limitSeguro);
 

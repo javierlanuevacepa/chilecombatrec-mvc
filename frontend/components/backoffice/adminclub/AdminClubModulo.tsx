@@ -365,7 +365,9 @@ const saveTeam = (input: TeamInput) => {
   if (cargando) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[color:var(--surface)] px-6">
-        <p className="text-sm text-[color:var(--muted)]">Cargando panel…</p>
+        <p className="text-sm text-[color:var(--muted)] lg:text-base">
+          Cargando panel…
+        </p>
       </div>
     );
   }
@@ -381,8 +383,10 @@ const saveTeam = (input: TeamInput) => {
           className="text-[color:var(--corner)]"
         />
         <div>
-          <p className="text-base font-medium">No pudimos cargar el club</p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
+          <p className="text-base font-medium lg:text-lg">
+            No pudimos cargar el club
+          </p>
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)] lg:text-base">
             {error}
           </p>
         </div>
@@ -400,8 +404,8 @@ const saveTeam = (input: TeamInput) => {
           className="text-[color:var(--corner)]"
         />
         <div>
-          <p className="text-base font-medium">Sin club asignado</p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
+          <p className="text-base font-medium lg:text-lg">Sin club asignado</p>
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)] lg:text-base">
             Tu usuario todavía no tiene un club vinculado. Contacta al
             administrador del sistema para que te asigne uno.
           </p>
@@ -420,18 +424,18 @@ const saveTeam = (input: TeamInput) => {
   return (
     <div className="min-h-[100dvh] text-[color:var(--ink)] [--control-border:#7c8a9c] [background-image:repeating-linear-gradient(125deg,rgba(20,35,58,0.028)_0,rgba(20,35,58,0.028)_1px,transparent_1px,transparent_64px)]">
       <header className="sticky top-0 z-10 border-b border-[color:var(--line)] bg-[rgba(238,241,245,0.92)] backdrop-blur-[8px]">
-        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4 lg:max-w-[1300px] lg:px-10 lg:py-4 xl:max-w-[1500px] 2xl:max-w-[1600px]">
+          <div className="flex min-w-0 items-center gap-3 lg:gap-4">
             <Avatar
               name={club.nombre}
               photo={club.url_foto}
-              className="h-10 w-10 text-base"
+              className="h-10 w-10 text-base lg:h-12 lg:w-12 lg:text-lg"
             />
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold leading-tight">
+              <p className="truncate text-[15px] font-semibold leading-tight lg:text-base">
                 {club.nombre}
               </p>
-              <p className="text-[13px] text-[color:var(--muted)]">
+              <p className="text-[13px] text-[color:var(--muted)] lg:text-sm">
                 Administrador
               </p>
             </div>
@@ -443,20 +447,20 @@ const saveTeam = (input: TeamInput) => {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7">
+      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7 lg:max-w-[1300px] lg:px-10 lg:pb-16 lg:pt-12 xl:max-w-[1500px] 2xl:max-w-[1600px]">
         <h1 className="sr-only">Panel de administración</h1>
 
         {/* Datos del equipo */}
         <section aria-labelledby={`${uid}-team`}>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:mb-5">
             <h2
               id={`${uid}-team`}
-              className="flex items-center gap-2 text-lg font-semibold"
+              className="flex items-center gap-2 text-lg font-semibold lg:text-xl"
             >
               <ShieldCheck
                 size={18}
                 aria-hidden="true"
-                className="text-[color:var(--corner)]"
+                className="text-[color:var(--corner)] lg:h-5 lg:w-5"
               />
               Datos del equipo
             </h2>
@@ -470,26 +474,28 @@ const saveTeam = (input: TeamInput) => {
             </Button>
           </div>
 
-          <Panel innerClassName="flex items-start gap-4 px-[18px] py-4">
+          <Panel innerClassName="flex items-start gap-4 px-[18px] py-4 lg:gap-5 lg:px-6 lg:py-5">
             <Avatar
               name={club.nombre}
               photo={club.url_foto}
-              className="mt-0.5 h-[52px] w-[52px] shrink-0 text-lg"
+              className="mt-0.5 h-[52px] w-[52px] shrink-0 text-lg lg:h-16 lg:w-16 lg:text-xl"
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-medium">{club.nombre}</p>
+              <p className="truncate text-base font-medium lg:text-lg">
+                {club.nombre}
+              </p>
 
               {club.descripcion ? (
-                <p className="mt-1 text-sm leading-snug text-[color:var(--muted)]">
+                <p className="mt-1 text-sm leading-snug text-[color:var(--muted)] lg:mt-1.5 lg:text-base">
                   {club.descripcion}
                 </p>
               ) : (
-                <p className="mt-1 text-sm italic text-[color:var(--muted)]">
+                <p className="mt-1 text-sm italic text-[color:var(--muted)] lg:mt-1.5 lg:text-base">
                   Sin descripción registrada
                 </p>
               )}
 
-              <ul className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[color:var(--muted)]">
+              <ul className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[color:var(--muted)] lg:mt-3 lg:gap-x-6 lg:text-base">
                 {club.telefono && (
                   <li className="flex items-center gap-1.5 [font-family:var(--font-mono-stack)]">
                     <Phone size={13} aria-hidden="true" />
@@ -513,7 +519,7 @@ const saveTeam = (input: TeamInput) => {
                       Fundado el {fundacion}
                       {anos !== null && (
                         <span
-                          className="inline-flex items-center rounded-[2px] bg-[color:var(--surface-2)] px-1.5 py-0.5 text-[12px] font-medium text-[color:var(--ink-soft)]"
+                          className="inline-flex items-center rounded-[2px] bg-[color:var(--surface-2)] px-1.5 py-0.5 text-[12px] font-medium text-[color:var(--ink-soft)] lg:px-2 lg:py-1 lg:text-[13px]"
                           title={`${anos} ${anos === 1 ? "año" : "años"} desde su fundación`}
                         >
                           {anos} {anos === 1 ? "año" : "años"}
@@ -532,7 +538,7 @@ const saveTeam = (input: TeamInput) => {
           role="tablist"
           aria-label="Gestión del club"
           onKeyDown={onTabKeyDown}
-          className="mb-5 mt-9 flex gap-1 border-b border-[color:var(--line)]"
+          className="mb-5 mt-9 flex gap-1 border-b border-[color:var(--line)] lg:mb-6 lg:mt-12"
         >
           {tabs.map((t) => (
             <button
@@ -547,7 +553,7 @@ const saveTeam = (input: TeamInput) => {
               aria-controls={`${uid}-panel-${t.value}`}
               tabIndex={tab === t.value ? 0 : -1}
               onClick={() => setTab(t.value)}
-              className={`-mb-px cursor-pointer border-b-2 bg-transparent px-3 pb-3 pt-2.5 text-[15px] font-medium transition-colors duration-150 [font-family:var(--font-sans-stack)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--corner)] motion-reduce:transition-none ${
+              className={`-mb-px cursor-pointer border-b-2 bg-transparent px-3 pb-3 pt-2.5 text-[15px] font-medium transition-colors duration-150 [font-family:var(--font-sans-stack)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--corner)] motion-reduce:transition-none lg:px-4 lg:text-base ${
                 tab === t.value
                   ? "border-[color:var(--corner)] text-[color:var(--ink)]"
                   : "border-transparent text-[color:var(--muted)] hover:text-[color:var(--ink)]"
@@ -565,12 +571,12 @@ const saveTeam = (input: TeamInput) => {
             role="tabpanel"
             aria-labelledby={`${uid}-tab-coaches`}
           >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:mb-5">
+              <h2 className="flex items-center gap-2 text-lg font-semibold lg:text-xl">
                 <Users
                   size={18}
                   aria-hidden="true"
-                  className="text-[color:var(--corner)]"
+                  className="text-[color:var(--corner)] lg:h-5 lg:w-5"
                 />
                 Coaches
               </h2>
@@ -587,7 +593,7 @@ const saveTeam = (input: TeamInput) => {
             </div>
 
             {coaches.length > 0 ? (
-              <ul className="flex flex-col gap-2.5">
+              <ul className="flex flex-col gap-2.5 lg:gap-3">
                 {coaches.map((c) => (
                   <ListRow
                     key={c.id}
@@ -622,12 +628,12 @@ const saveTeam = (input: TeamInput) => {
             role="tabpanel"
             aria-labelledby={`${uid}-tab-students`}
           >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:mb-5">
+              <h2 className="flex items-center gap-2 text-lg font-semibold lg:text-xl">
                 <Swords
                   size={18}
                   aria-hidden="true"
-                  className="text-[color:var(--corner)]"
+                  className="text-[color:var(--corner)] lg:h-5 lg:w-5"
                 />
                 Estudiantes
               </h2>
@@ -643,7 +649,7 @@ const saveTeam = (input: TeamInput) => {
               </Button>
             </div>
             {students.length > 0 ? (
-              <ul className="flex flex-col gap-2.5">
+              <ul className="flex flex-col gap-2.5 lg:gap-3">
                 {students.map((s) => {
                   const nombre = nombreCompletoStudent(s);
                   const total = recordTotalStudent(s);
@@ -701,14 +707,17 @@ const saveTeam = (input: TeamInput) => {
     }}
   >
     {guardando && (
-      <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
+      <p
+        role="status"
+        className="mb-3 text-sm text-[color:var(--muted)] lg:text-base"
+      >
         Guardando cambios…
       </p>
     )}
     {errorGuardado && (
       <p
         role="alert"
-        className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+        className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
       >
         {errorGuardado}
       </p>
@@ -735,14 +744,17 @@ const saveTeam = (input: TeamInput) => {
           }}
         >
           {coachesCrud.guardando && (
-            <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
+            <p
+              role="status"
+              className="mb-3 text-sm text-[color:var(--muted)] lg:text-base"
+            >
               Guardando cambios…
             </p>
           )}
           {coachesCrud.errorGuardado && (
             <p
               role="alert"
-              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
             >
               {coachesCrud.errorGuardado}
             </p>
@@ -772,14 +784,17 @@ const saveTeam = (input: TeamInput) => {
           wide
         >
           {deportistasCrud.guardando && (
-            <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
+            <p
+              role="status"
+              className="mb-3 text-sm text-[color:var(--muted)] lg:text-base"
+            >
               Guardando cambios…
             </p>
           )}
           {deportistasCrud.errorGuardado && (
             <p
               role="alert"
-              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
             >
               {deportistasCrud.errorGuardado}
             </p>

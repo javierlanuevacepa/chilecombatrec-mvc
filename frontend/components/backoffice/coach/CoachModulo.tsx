@@ -135,6 +135,8 @@ export default function CoachModulo() {
         sApellido: d.s_apellido,
         alias: d.alias,
         nacionalidad: d.nacionalidad,
+        codigo_interno: d.codigo_interno,
+        aparecer_busqueda: d.aparecer_busqueda,
         fechaNacimiento: d.fecha_nacimiento,
         genero: d.genero,
         pesoEnKg: Number(d.peso_en_kg) || 0,
@@ -237,7 +239,9 @@ export default function CoachModulo() {
   if (cargando) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[color:var(--surface)] px-6">
-        <p className="text-sm text-[color:var(--muted)]">Cargando panel…</p>
+        <p className="text-sm text-[color:var(--muted)] lg:text-base">
+          Cargando panel…
+        </p>
       </div>
     );
   }
@@ -253,8 +257,10 @@ export default function CoachModulo() {
           className="text-[color:var(--corner)]"
         />
         <div>
-          <p className="text-base font-medium">No pudimos cargar el club</p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
+          <p className="text-base font-medium lg:text-lg">
+            No pudimos cargar el club
+          </p>
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)] lg:text-base">
             {error}
           </p>
         </div>
@@ -272,8 +278,8 @@ export default function CoachModulo() {
           className="text-[color:var(--corner)]"
         />
         <div>
-          <p className="text-base font-medium">Sin club asignado</p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
+          <p className="text-base font-medium lg:text-lg">Sin club asignado</p>
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)] lg:text-base">
             Tu usuario todavía no tiene un club vinculado. Contacta al
             administrador del sistema para que te asigne uno.
           </p>
@@ -295,10 +301,10 @@ export default function CoachModulo() {
           className="text-[color:var(--corner)]"
         />
         <div>
-          <p className="text-base font-medium">
+          <p className="text-base font-medium lg:text-lg">
             No encontramos tu perfil de coach
           </p>
-          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)]">
+          <p className="mt-1 max-w-[420px] text-sm text-[color:var(--muted)] lg:text-base">
             Tu usuario no figura entre los coaches de {club.nombre}. Pide al
             administrador del club que revise tu registro.
           </p>
@@ -342,18 +348,20 @@ export default function CoachModulo() {
   return (
     <div className="min-h-[100dvh] text-[color:var(--ink)] [--control-border:#7c8a9c] [background-image:repeating-linear-gradient(125deg,rgba(20,35,58,0.028)_0,rgba(20,35,58,0.028)_1px,transparent_1px,transparent_64px)]">
       <header className="sticky top-0 z-10 border-b border-[color:var(--line)] bg-[rgba(238,241,245,0.92)] backdrop-blur-[8px]">
-        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4 lg:max-w-[1300px] lg:px-10 lg:py-4 xl:max-w-[1500px] 2xl:max-w-[1600px]">
+          <div className="flex min-w-0 items-center gap-3 lg:gap-4">
             <Avatar
               name={club.nombre}
               photo={club.url_foto}
-              className="h-10 w-10 text-base"
+              className="h-10 w-10 text-base lg:h-12 lg:w-12 lg:text-lg"
             />
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold leading-tight">
+              <p className="truncate text-[15px] font-semibold leading-tight lg:text-base">
                 {club.nombre}
               </p>
-              <p className="text-[13px] text-[color:var(--muted)]">Coach</p>
+              <p className="text-[13px] text-[color:var(--muted)] lg:text-sm">
+                Coach
+              </p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -363,21 +371,21 @@ export default function CoachModulo() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7">
+      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7 lg:max-w-[1300px] lg:px-10 lg:pb-16 lg:pt-12 xl:max-w-[1500px] 2xl:max-w-[1600px]">
         {/* Perfil del coach */}
-        <section className="flex items-center gap-4 max-[480px]:items-start">
+        <section className="flex items-center gap-4 max-[480px]:items-start lg:gap-6">
           <Avatar
             name={coachActual.nombre}
-            className="h-16 w-16 shrink-0 text-2xl"
+            className="h-16 w-16 shrink-0 text-2xl lg:h-20 lg:w-20 lg:text-3xl"
           />
           <div className="min-w-0">
-            <span className="inline-block rounded-[2px] border border-[color:var(--corner)] bg-[color:var(--corner-tint)] px-2 py-px text-[13px] font-semibold text-[color:var(--corner-dark)]">
+            <span className="inline-block rounded-[2px] border border-[color:var(--corner)] bg-[color:var(--corner-tint)] px-2 py-px text-[13px] font-semibold text-[color:var(--corner-dark)] lg:px-2.5 lg:py-0.5 lg:text-sm">
               Coach
             </span>
-            <h1 className="mt-1 text-[clamp(26px,5vw,32px)] font-normal leading-[1.05] tracking-[0.005em] text-[color:var(--ink)] [font-family:var(--font-display-stack)]">
+            <h1 className="mt-1 text-[clamp(26px,5vw,32px)] font-normal leading-[1.05] tracking-[0.005em] text-[color:var(--ink)] [font-family:var(--font-display-stack)] lg:text-[clamp(32px,3vw,40px)]">
               {coachActual.nombre}
             </h1>
-            <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[color:var(--muted)]">
+            <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-[color:var(--muted)] lg:gap-x-6 lg:text-base">
               <li className="flex items-center gap-1.5">
                 <Users size={14} aria-hidden="true" />
                 <span>{club.nombre}</span>
@@ -401,13 +409,16 @@ export default function CoachModulo() {
         </section>
 
         {/* Estadísticas */}
-        <section aria-label="Resumen de mis estudiantes" className="mt-7">
+        <section aria-label="Resumen de mis estudiantes" className="mt-7 lg:mt-9">
           <Panel innerClassName="">
             <dl className="grid grid-cols-4 divide-x divide-dashed divide-[color:var(--line)] max-[560px]:grid-cols-2 max-[560px]:gap-y-1 max-[560px]:divide-x-0">
               {stats.map((s) => (
-                <div key={s.label} className="px-4 py-4 text-center">
+                <div
+                  key={s.label}
+                  className="px-4 py-4 text-center lg:px-6 lg:py-6"
+                >
                   <dd
-                    className={`text-xl font-medium [font-family:var(--font-mono-stack)] ${
+                    className={`text-xl font-medium [font-family:var(--font-mono-stack)] lg:text-2xl ${
                       s.accent
                         ? "text-[color:var(--corner)]"
                         : "text-[color:var(--ink)]"
@@ -415,7 +426,7 @@ export default function CoachModulo() {
                   >
                     {s.value}
                   </dd>
-                  <dt className="mt-1 text-[13px] text-[color:var(--muted)]">
+                  <dt className="mt-1 text-[13px] text-[color:var(--muted)] lg:text-sm">
                     {s.label}
                   </dt>
                 </div>
@@ -425,16 +436,16 @@ export default function CoachModulo() {
         </section>
 
         {/* Mis estudiantes */}
-        <section aria-labelledby={`${uid}-students`} className="mt-9">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <section aria-labelledby={`${uid}-students`} className="mt-9 lg:mt-12">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:mb-5">
             <h2
               id={`${uid}-students`}
-              className="flex items-center gap-2 text-lg font-semibold"
+              className="flex items-center gap-2 text-lg font-semibold lg:text-xl"
             >
               <Award
                 size={18}
                 aria-hidden="true"
-                className="text-[color:var(--corner)]"
+                className="text-[color:var(--corner)] lg:h-5 lg:w-5"
               />
               Mis estudiantes
             </h2>
@@ -454,14 +465,14 @@ export default function CoachModulo() {
           {!studentModal && deportistasCrud.errorGuardado && (
             <p
               role="alert"
-              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
             >
               {deportistasCrud.errorGuardado}
             </p>
           )}
 
           {misEstudiantes.length > 0 ? (
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-2.5 lg:gap-3">
               {misEstudiantes.map((s) => {
                 const nombre = nombreCompletoStudent(s);
                 const total = calcularRecordTotal(s.records);
@@ -527,14 +538,17 @@ export default function CoachModulo() {
           wide
         >
           {deportistasCrud.guardando && (
-            <p role="status" className="mb-3 text-sm text-[color:var(--muted)]">
+            <p
+              role="status"
+              className="mb-3 text-sm text-[color:var(--muted)] lg:text-base"
+            >
               Guardando cambios…
             </p>
           )}
           {deportistasCrud.errorGuardado && (
             <p
               role="alert"
-              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+              className="mb-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
             >
               {deportistasCrud.errorGuardado}
             </p>

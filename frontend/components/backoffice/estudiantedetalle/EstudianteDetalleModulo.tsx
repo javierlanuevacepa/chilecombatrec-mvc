@@ -392,47 +392,50 @@ export default function EstudianteDetalleModulo() {
   return (
     <div className="min-h-[100dvh] text-[color:var(--ink)] [--control-border:#7c8a9c] [background-image:repeating-linear-gradient(125deg,rgba(20,35,58,0.028)_0,rgba(20,35,58,0.028)_1px,transparent_1px,transparent_64px)]">
       <header className="sticky top-0 z-10 border-b border-[color:var(--line)] bg-[rgba(238,241,245,0.92)] backdrop-blur-[8px]">
-        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4">
+        <div className="mx-auto flex w-full max-w-[900px] items-center justify-between gap-3 px-6 py-3 max-[480px]:px-4 lg:max-w-[1300px] lg:px-10 lg:py-4 xl:max-w-[1500px] 2xl:max-w-[1600px]">
           <Button variant="ghost" size="sm" onClick={volver}>
             <ArrowLeft size={14} aria-hidden="true" />
             Volver
           </Button>
-          <span className="text-[17px] uppercase leading-none tracking-[0.01em] text-[color:var(--ink)] [font-family:var(--font-display-stack)]">
+          <span className="text-[17px] uppercase leading-none tracking-[0.01em] text-[color:var(--ink)] [font-family:var(--font-display-stack)] lg:text-[20px]">
             ChileCombat<span className="text-[color:var(--corner)]">Rec</span>
           </span>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7">
+      <main className="mx-auto w-full max-w-[900px] px-6 pb-10 pt-9 max-[480px]:px-4 max-[480px]:pb-[30px] max-[480px]:pt-7 lg:max-w-[1300px] lg:px-10 lg:pb-16 lg:pt-12 xl:max-w-[1500px] 2xl:max-w-[1600px]">
         {/* Perfil */}
-        <section className="flex items-center gap-4 max-[480px]:items-start">
-          <Avatar name={nombre} className="h-16 w-16 shrink-0 text-2xl" />
+        <section className="flex items-center gap-4 max-[480px]:items-start lg:gap-6">
+          <Avatar
+            name={nombre}
+            className="h-16 w-16 shrink-0 text-2xl lg:h-20 lg:w-20 lg:text-3xl"
+          />
           <div className="min-w-0">
             {student.disciplinas.length > 0 && (
               <ul className="flex flex-wrap gap-1.5">
                 {student.disciplinas.map((x) => (
                   <li
                     key={x.uuid}
-                    className="rounded-[2px] border border-[color:var(--corner)] bg-[color:var(--corner-tint)] px-2 py-px text-[13px] font-semibold text-[color:var(--corner-dark)]"
+                    className="rounded-[2px] border border-[color:var(--corner)] bg-[color:var(--corner-tint)] px-2 py-px text-[13px] font-semibold text-[color:var(--corner-dark)] lg:px-2.5 lg:py-0.5 lg:text-sm"
                   >
                     {x.nombre}
                   </li>
                 ))}
               </ul>
             )}
-            <h1 className="mt-1 text-[clamp(26px,5vw,32px)] font-normal leading-[1.05] tracking-[0.005em] text-[color:var(--ink)] [font-family:var(--font-display-stack)]">
+            <h1 className="mt-1 text-[clamp(26px,5vw,32px)] font-normal leading-[1.05] tracking-[0.005em] text-[color:var(--ink)] [font-family:var(--font-display-stack)] lg:text-[clamp(32px,3vw,40px)]">
               {nombre}
             </h1>
             {student.alias && (
-              <p className="mt-1 text-[15px] text-[color:var(--ink-soft)]">
+              <p className="mt-1 text-[15px] text-[color:var(--ink-soft)] lg:text-base">
                 “{student.alias}”
               </p>
             )}
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-[color:var(--muted)]">
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-[color:var(--muted)] lg:text-base">
               <Users size={14} aria-hidden="true" />
               {club.nombre}
             </p>
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-[color:var(--muted)]">
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-[color:var(--muted)] lg:text-base">
               Codigo de deportista: {student.codigo_interno}
             </p>
           </div>
@@ -440,16 +443,16 @@ export default function EstudianteDetalleModulo() {
 
         {/* Datos del deportista */}
         {datos.length > 0 && (
-          <section aria-label="Datos del deportista" className="mt-7">
-            <Panel innerClassName="px-[18px] py-4">
-              <dl className="grid grid-cols-3 gap-x-6 gap-y-4 max-[640px]:grid-cols-2 max-[400px]:grid-cols-1">
+          <section aria-label="Datos del deportista" className="mt-7 lg:mt-9">
+            <Panel innerClassName="px-[18px] py-4 lg:px-6 lg:py-5">
+              <dl className="grid grid-cols-3 gap-x-6 gap-y-4 max-[640px]:grid-cols-2 max-[400px]:grid-cols-1 lg:gap-x-8 lg:gap-y-5">
                 {datos.map((x) => (
                   <div key={x.label} className="min-w-0">
-                    <dt className="text-[13px] text-[color:var(--muted)]">
+                    <dt className="text-[13px] text-[color:var(--muted)] lg:text-sm">
                       {x.label}
                     </dt>
                     <dd
-                      className={`mt-0.5 truncate text-[15px] font-medium ${
+                      className={`mt-0.5 truncate text-[15px] font-medium lg:text-base ${
                         "mono" in x && x.mono
                           ? "[font-family:var(--font-mono-stack)]"
                           : ""
@@ -465,8 +468,8 @@ export default function EstudianteDetalleModulo() {
         )}
 
         {/* Aparecer en búsqueda */}
-        <section aria-label="Visibilidad del deportista" className="mt-4">
-          <Panel innerClassName="px-[18px] py-4">
+        <section aria-label="Visibilidad del deportista" className="mt-4 lg:mt-5">
+          <Panel innerClassName="px-[18px] py-4 lg:px-6 lg:py-5">
             <div className="flex items-start gap-3">
               <span className="relative mt-px inline-flex h-6 w-11 shrink-0">
                 <input
@@ -495,34 +498,34 @@ export default function EstudianteDetalleModulo() {
               <div className="min-w-0">
                 <label
                   htmlFor={`${uid}-busqueda`}
-                  className="cursor-pointer text-[15px] font-medium"
+                  className="cursor-pointer text-[15px] font-medium lg:text-base"
                 >
                   Aparecer en algoritmos de búsqueda de combate y ranking
                 </label>
                 <p
                   id={`${uid}-busqueda-desc`}
-                  className="mt-0.5 text-[13px] text-[color:var(--muted)]"
+                  className="mt-0.5 text-[13px] text-[color:var(--muted)] lg:max-w-[720px] lg:text-sm"
                 >
                   Si está activado, el deportista puede ser considerado en la
                   búsqueda de rivales para combates y aparecer en el ranking.
                 </p>
 
                 {!busquedaDisponible && (
-                  <p className="mt-1 text-[13px] text-[color:var(--muted)]">
+                  <p className="mt-1 text-[13px] text-[color:var(--muted)] lg:text-sm">
                     {busquedaCargando
                       ? "Cargando…"
                       : "No pudimos leer este dato por ahora."}
                   </p>
                 )}
                 {deportistasCrud.guardando && !confirmDesactivar && !confirmActivar && (
-                  <p role="status" className="mt-1 text-[13px] text-[color:var(--muted)]">
+                  <p role="status" className="mt-1 text-[13px] text-[color:var(--muted)] lg:text-sm">
                     Guardando…
                   </p>
                 )}
                 {deportistasCrud.errorGuardado && !confirmDesactivar && !confirmActivar && (
                   <p
                     role="alert"
-                    className="mt-2 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+                    className="mt-2 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
                   >
                     {deportistasCrud.errorGuardado}
                   </p>
@@ -533,12 +536,12 @@ export default function EstudianteDetalleModulo() {
         </section>
 
         {/* Récord */}
-        <section aria-labelledby={`${uid}-record`} className="mt-9">
+        <section aria-labelledby={`${uid}-record`} className="mt-9 lg:mt-12">
           <h2
             id={`${uid}-record`}
-            className="mb-4 flex items-center gap-2 text-lg font-semibold"
+            className="mb-4 flex items-center gap-2 text-lg font-semibold lg:mb-5 lg:text-xl"
           >
-            <Swords size={18} aria-hidden="true" className="text-[color:var(--corner)]" />
+            <Swords size={18} aria-hidden="true" className="text-[color:var(--corner)] lg:h-5 lg:w-5" />
             {disciplinaActiva ? `Récord en ${disciplinaActiva.nombre}` : "Récord"}
           </h2>
 
@@ -547,7 +550,7 @@ export default function EstudianteDetalleModulo() {
               role="tablist"
               aria-label="Disciplina"
               onKeyDown={onTabKeyDown}
-              className="mb-5 flex flex-wrap gap-1 border-b border-[color:var(--line)]"
+              className="mb-5 flex flex-wrap gap-1 border-b border-[color:var(--line)] lg:mb-6"
             >
               {student.disciplinas.map((x) => {
                 const activa = x.uuid === disciplinaActiva?.uuid;
@@ -564,7 +567,7 @@ export default function EstudianteDetalleModulo() {
                     aria-controls={`${uid}-panel`}
                     tabIndex={activa ? 0 : -1}
                     onClick={() => seleccionarDisciplina(x.uuid)}
-                    className={`-mb-px cursor-pointer border-b-2 bg-transparent px-3 pb-3 pt-2.5 text-[15px] font-medium transition-colors duration-150 [font-family:var(--font-sans-stack)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--corner)] motion-reduce:transition-none ${
+                    className={`-mb-px cursor-pointer border-b-2 bg-transparent px-3 pb-3 pt-2.5 text-[15px] font-medium transition-colors duration-150 [font-family:var(--font-sans-stack)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--corner)] motion-reduce:transition-none lg:px-4 lg:text-base ${
                       activa
                         ? "border-[color:var(--corner)] text-[color:var(--ink)]"
                         : "border-transparent text-[color:var(--muted)] hover:text-[color:var(--ink)]"
@@ -591,9 +594,12 @@ export default function EstudianteDetalleModulo() {
                 <Panel innerClassName="">
                   <dl className="grid grid-cols-4 divide-x divide-dashed divide-[color:var(--line)] max-[560px]:grid-cols-2 max-[560px]:gap-y-1 max-[560px]:divide-x-0">
                     {stats.map((s) => (
-                      <div key={s.label} className="px-4 py-4 text-center">
+                      <div
+                        key={s.label}
+                        className="px-4 py-4 text-center lg:px-6 lg:py-6"
+                      >
                         <dd
-                          className={`text-xl font-medium [font-family:var(--font-mono-stack)] ${
+                          className={`text-xl font-medium [font-family:var(--font-mono-stack)] lg:text-2xl ${
                             s.accent
                               ? "text-[color:var(--corner)]"
                               : "text-[color:var(--ink)]"
@@ -601,14 +607,14 @@ export default function EstudianteDetalleModulo() {
                         >
                           {s.value}
                         </dd>
-                        <dt className="mt-1 text-[13px] text-[color:var(--muted)]">
+                        <dt className="mt-1 text-[13px] text-[color:var(--muted)] lg:text-sm">
                           {s.label}
                         </dt>
                       </div>
                     ))}
                   </dl>
                 </Panel>
-                <p className="mt-2 text-[13px] text-[color:var(--muted)]">
+                <p className="mt-2 text-[13px] text-[color:var(--muted)] lg:text-sm">
                   Récord anterior a la plataforma.
                 </p>
 
@@ -640,7 +646,7 @@ export default function EstudianteDetalleModulo() {
                 </Button>
 
                 {!busquedaHabilitada && busquedaDisponible && (
-                  <p className="mt-2 max-w-[520px] text-[13px] text-[color:var(--muted)]">
+                  <p className="mt-2 max-w-[520px] text-[13px] text-[color:var(--muted)] lg:text-sm">
                     Activa la opción{" "}
                     <span className="font-medium text-[color:var(--ink-soft)]">
                       “Aparecer en algoritmos de búsqueda de combate y ranking”
@@ -659,11 +665,11 @@ export default function EstudianteDetalleModulo() {
         </section>
 
         {/* Rivales sugeridos */}
-        <section aria-live="polite" className="mt-8">
+        <section aria-live="polite" className="mt-8 lg:mt-10">
           {errorBusqueda && (
             <div
               role="alert"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)]"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-[2px] border border-[color:var(--corner)] bg-[rgba(220,38,38,0.08)] px-3 py-2 text-sm text-[color:var(--corner)] lg:text-base"
             >
               <span>{errorBusqueda}</span>
               <Button
@@ -679,26 +685,26 @@ export default function EstudianteDetalleModulo() {
 
           {buscando && disciplinaActiva && (
             <>
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <h2 className="flex items-center gap-2 text-lg font-semibold lg:text-xl">
                 <Loader2
                   size={18}
                   aria-hidden="true"
-                  className="animate-spin text-[color:var(--corner)] motion-reduce:animate-none"
+                  className="animate-spin text-[color:var(--corner)] motion-reduce:animate-none lg:h-5 lg:w-5"
                 />
                 Buscando rivales en {disciplinaActiva.nombre}…
               </h2>
-              <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
+              <p className="mb-4 mt-1 text-sm text-[color:var(--muted)] lg:text-base">
                 Comparando edad, peso, experiencia y tiempo de entrenamiento.
               </p>
               <ul className="flex flex-col gap-2.5">
                 {Array.from({ length: LIMITE_CANDIDATOS }).map((_, i) => (
                   <li
                     key={`sk-${i}`}
-                    className="animate-pulse rounded-[2px] border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5 motion-reduce:animate-none"
+                    className="animate-pulse rounded-[2px] border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5 motion-reduce:animate-none lg:px-5 lg:py-4"
                     style={{ animationDelay: `${i * 80}ms` }}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="h-11 w-11 shrink-0 rounded-full bg-[color:var(--line)]" />
+                      <div className="h-11 w-11 shrink-0 rounded-full bg-[color:var(--line)] lg:h-12 lg:w-12" />
                       <div className="flex-1 space-y-2">
                         <div className="h-4 w-2/3 rounded bg-[color:var(--line)]" />
                         <div className="h-3 w-1/2 rounded bg-[color:var(--line)]" />
@@ -717,10 +723,10 @@ export default function EstudianteDetalleModulo() {
 
           {!buscando && !errorBusqueda && busquedaHecha && disciplinaActiva && (
             <>
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold lg:text-xl">
                 Rivales sugeridos en {disciplinaActiva.nombre}
               </h2>
-              <p className="mb-4 mt-1 text-sm text-[color:var(--muted)]">
+              <p className="mb-4 mt-1 text-sm text-[color:var(--muted)] lg:text-base">
                 De otras escuelas, con experiencia y contextura similares.
               </p>
 
@@ -730,7 +736,7 @@ export default function EstudianteDetalleModulo() {
                   Prueba más tarde o revisa el récord del deportista.
                 </EmptyState>
               ) : (
-                <ul className="flex flex-col gap-2.5">
+                <ul className="flex flex-col gap-2.5 lg:gap-3">
                   {candidatos.map((c) => {
                     const nombreRival = nombreCandidato(c);
                     const { clubNombre, telefono, correo, contactoEsCoach } =
@@ -741,25 +747,27 @@ export default function EstudianteDetalleModulo() {
                     return (
                       <li
                         key={c.uuid}
-                        className="border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5"
+                        className="border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3.5 lg:flex lg:items-center lg:justify-between lg:gap-6 lg:px-5 lg:py-4"
                       >
                         {/* Cabecera: avatar + nombre + alias + club */}
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-3 lg:min-w-0 lg:flex-1">
                           <Avatar
                             name={nombreRival}
-                            className="h-11 w-11 shrink-0 text-base"
+                            className="h-11 w-11 shrink-0 text-base lg:h-12 lg:w-12"
                           />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                              <p className="text-[15px] font-medium">{nombreRival}</p>
+                              <p className="text-[15px] font-medium lg:text-base">
+                                {nombreRival}
+                              </p>
                               {c.alias && (
-                                <span className="text-[13px] text-[color:var(--ink-soft)]">
+                                <span className="text-[13px] text-[color:var(--ink-soft)] lg:text-sm">
                                   “{c.alias}”
                                 </span>
                               )}
                             </div>
                             {clubNombre && (
-                              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color:var(--muted)]">
+                              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color:var(--muted)] lg:text-base">
                                 <Users size={12} aria-hidden="true" />
                                 {clubNombre}
                               </p>
@@ -768,7 +776,7 @@ export default function EstudianteDetalleModulo() {
                         </div>
 
                         {/* Stats: peso · edad · récord (V-D-E) · total */}
-                        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--muted)]">
+                        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--muted)] lg:mt-0 lg:shrink-0 lg:text-base">
                           <span>{formatearNumero(c.peso_en_kg, "kg")}</span>
                           <span>
                             {c.edad} {c.edad === 1 ? "año" : "años"}
@@ -793,11 +801,11 @@ export default function EstudianteDetalleModulo() {
 
                         {/* Contacto del club */}
                         {!sinContacto ? (
-                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 lg:mt-0 lg:shrink-0">
                             {telefono && (
                               <a
                                 href={telHref(telefono)}
-                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] [font-family:var(--font-mono-stack)] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)]"
+                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] [font-family:var(--font-mono-stack)] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)] lg:text-base"
                                 title={
                                   contactoEsCoach
                                     ? "Teléfono del coach de contacto"
@@ -811,7 +819,7 @@ export default function EstudianteDetalleModulo() {
                             {correo && (
                               <a
                                 href={`mailto:${correo}`}
-                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)]"
+                                className="inline-flex items-center gap-1.5 text-sm text-[color:var(--ink-soft)] underline underline-offset-[3px] hover:text-[color:var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--corner)] lg:text-base"
                                 title={
                                   contactoEsCoach
                                     ? "Correo del coach de contacto"
@@ -824,7 +832,7 @@ export default function EstudianteDetalleModulo() {
                             )}
                           </div>
                         ) : (
-                          <p className="mt-2.5 text-[13px] text-[color:var(--muted)]">
+                          <p className="mt-2.5 text-[13px] text-[color:var(--muted)] lg:mt-0 lg:shrink-0 lg:text-sm">
                             Sin datos de contacto del club.
                           </p>
                         )}
